@@ -1,0 +1,18 @@
+---
+- name: Create mount directory for {{ storage.device }}
+  ansible.builtin.file:
+    path: "{{ storage.mount_point }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+
+- name: Mount {{ storage.device }} to {{ storage.mount_point }}
+  ansible.posix.mount:
+    src: "{{ storage.device }}"
+    path: "{{ storage.mount_point }}"
+    fstype: "{{ storage.filesystem }}"
+    state: mounted
+    opts: defaults
+    dump: 0
+    passno: 2

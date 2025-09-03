@@ -1,0 +1,56 @@
+---
+# =============================================================================
+# Uptime Kuma Monitoring Deployment
+# =============================================================================
+
+- name: Create Uptime Kuma directory
+  ansible.builtin.file:
+    path: "{{ docker.stacks_directory }}/uptime-kuma"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create Uptime Kuma data directory
+  ansible.builtin.file:
+    path: "{{ docker.stacks_directory }}/uptime-kuma/uptime-kuma-data"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create Uptime Kuma docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ docker.stacks_directory }}/uptime-kuma/compose.yml"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+  notify: Restart uptime-kuma
+
+- name: Start Uptime Kuma
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker.stacks_directory }}/uptime-kuma"
+    state: present
+
+- name: Wait for Uptime Kuma to be ready
+  ansible.builtin.wait_for:
+    host: "{{ network.pi_ip }}"
+    port: "{{ services.uptime_kuma.port }}"
+    delay: 15
+    timeout: 120
+
+- name: Allow Uptime Kuma on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ services.uptime_kuma.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Uptime Kuma on custom port - local network only"
+
+- name: Display Uptime Kuma access information
+  ansible.builtin.debug:
+    msg: |
+      Uptime Kuma is now running!
+      Access it at: http://{{ network.pi_ip }}:{{ services.uptime_kuma.port }}
+      Create your administrator account on first visit.

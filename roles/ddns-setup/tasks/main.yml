@@ -1,0 +1,50 @@
+---
+# =============================================================================
+# Dynamic DNS Setup with myaddr.tools
+# =============================================================================
+
+- name: Create DDNS update script
+  ansible.builtin.template:
+    src: update-ddns.sh.j2
+    dest: /usr/local/bin/update-ddns.sh
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Create systemd service for DDNS updates
+  ansible.builtin.template:
+    src: myaddrdns.service.j2
+    dest: /etc/systemd/system/myaddrdns.service
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Create systemd timer for DDNS updates
+  ansible.builtin.template:
+    src: myaddrdns.timer.j2
+    dest: /etc/systemd/system/myaddrdns.timer
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable and start DDNS timer
+  ansible.builtin.systemd:
+    name: myaddrdns.timer
+    enabled: true
+    state: started
+
+- name: Run initial DDNS update
+  ansible.builtin.systemd:
+    name: myaddrdns.service
+    state: started
+
+- name: Check DDNS timer status
+  ansible.builtin.command: systemctl status myaddrdns.timer
+  register: ddns_timer_status
+  changed_when: false
+
+- name: Display DDNS timer status
+  ansible.builtin.debug:
+    var: ddns_timer_status.stdout_lines

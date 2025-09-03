@@ -1,0 +1,99 @@
+---
+# =============================================================================
+# PhotoPrism Deployment
+# =============================================================================
+
+- name: Check if external storage is mounted
+  ansible.builtin.stat:
+    path: "{{ storage.mount_point }}"
+  register: photoprism_external_storage_check
+
+- name: Verify external storage mount
+  ansible.builtin.assert:
+    that: photoprism_external_storage_check.stat.exists
+    fail_msg: "External storage not found at {{ storage.mount_point }}. Please mount it first."
+
+- name: Create PhotoPrism database directory on main drive
+  ansible.builtin.file:
+    path: "{{ storage.directories.photoprism_database }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create PhotoPrism Docker stack directory
+  ansible.builtin.file:
+    path: "{{ docker.stacks_directory }}/photoprism"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create PhotoPrism docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ docker.stacks_directory }}/photoprism/compose.yml"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+  notify: Restart photoprism
+
+- name: Start PhotoPrism
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker.stacks_directory }}/photoprism"
+    state: present
+
+- name: Allow PhotoPrism on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ services.photoprism.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "PhotoPrism on custom port - local network only"
+
+- name: Wait for PhotoPrism to be ready
+  ansible.builtin.wait_for:
+    host: "{{ network.pi_ip }}"
+    port: "{{ services.photoprism.port }}"
+    delay: 30
+    timeout: 180
+
+- name: Run PhotoPrism restore command
+  ansible.builtin.command:
+    cmd: docker compose exec photoprism photoprism restore -i -f
+    chdir: "{{ docker.stacks_directory }}/photoprism"
+  register: photoprism_restore_result
+  changed_when: photoprism_restore_result.rc == 0
+
+- name: Display PhotoPrism restore command result
+  ansible.builtin.debug:
+    msg: |
+      PhotoPrism restore command completed with return code: {{ photoprism_restore_result.rc }}
+      {% if photoprism_restore_result.stdout %}
+      Output: {{ photoprism_restore_result.stdout }}
+      {% endif %}
+      {% if photoprism_restore_result.stderr %}
+      Error output: {{ photoprism_restore_result.stderr }}
+      {% endif %}
+
+- name: Display PhotoPrism access information
+  ansible.builtin.debug:
+    msg: |
+      PhotoPrism is now running!
+      Local Access: http://{{ network.pi_ip }}:{{ services.photoprism.port }}
+      {% if services.photoprism.domain %}
+      Public Domain: {{ services.photoprism.domain }}
+      {% endif %}
+
+      Default Login: admin / {{ photoprism_admin_password }}
+
+      Directory Structure:
+      - Target Location: {{ storage.directories.photoprism }}/originals
+      - Storage: {{ storage.directories.photoprism }}/storage
+      - Import: {{ storage.directories.photoprism }}/import
+      - Database: {{ storage.directories.photoprism_database }}
+
+      Next Steps:
+      1. Verify restored photos in the originals directory
+      2. Configure public access via Nginx Proxy Manager if desired
+      3. Set up SSL certificate for the domain

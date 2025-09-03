@@ -1,0 +1,34 @@
+---
+# =============================================================================
+# System Updates and Initial Configuration
+# =============================================================================
+
+- name: Update package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Perform full system upgrade
+  ansible.builtin.apt:
+    upgrade: full
+    autoremove: true
+    autoclean: true
+  register: system_upgrade
+  notify: reboot if needed
+
+- name: Install essential packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - git
+      - htop
+      - vim
+      - unzip
+      - software-properties-common
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - rsync
+    state: present

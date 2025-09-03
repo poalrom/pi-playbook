@@ -1,0 +1,60 @@
+---
+# =============================================================================
+# Nginx Proxy Manager Deployment
+# =============================================================================
+
+- name: Create Nginx Proxy Manager directory
+  ansible.builtin.file:
+    path: "{{ docker.stacks_directory }}/nginx-proxy-manager"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create Nginx Proxy Manager data directories
+  ansible.builtin.file:
+    path: "{{ docker.stacks_directory }}/nginx-proxy-manager/{{ item }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+  loop:
+    - data
+    - letsencrypt
+
+- name: Create Nginx Proxy Manager docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ docker.stacks_directory }}/nginx-proxy-manager/compose.yml"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+  notify: Restart nginx-proxy-manager
+
+- name: Start Nginx Proxy Manager
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker.stacks_directory }}/nginx-proxy-manager"
+    state: present
+
+- name: Wait for Nginx Proxy Manager to be ready
+  ansible.builtin.wait_for:
+    host: "{{ network.pi_ip }}"
+    port: "{{ services.nginx_proxy_manager.port }}"
+    delay: 10
+    timeout: 60
+
+- name: Allow Nginx Proxy Manager on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ services.nginx_proxy_manager.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Nginx Proxy Manager on custom port - local network only"
+
+- name: Display Nginx Proxy Manager access information
+  ansible.builtin.debug:
+    msg: |
+      Nginx Proxy Manager is now running!
+      Access it at: http://{{ network.pi_ip }}:{{ services.nginx_proxy_manager.port }}
+      Default credentials: admin@example.com / changeme
+      IMPORTANT: Change these credentials immediately after first login!

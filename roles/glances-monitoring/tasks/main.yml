@@ -1,0 +1,60 @@
+---
+# =============================================================================
+# Glances System Monitoring Deployment
+# =============================================================================
+
+- name: Create Glances directory
+  ansible.builtin.file:
+    path: "{{ docker.stacks_directory }}/glances"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create Glances docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ docker.stacks_directory }}/glances/compose.yml"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+  notify: Restart glances
+
+- name: Start Glances
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker.stacks_directory }}/glances"
+    state: present
+
+- name: Wait for Glances to be ready
+  ansible.builtin.wait_for:
+    host: "{{ network.pi_ip }}"
+    port: "{{ services.glances.port }}"
+    delay: 10
+    timeout: 60
+
+- name: Test Glances API
+  ansible.builtin.uri:
+    url: "http://{{ network.pi_ip }}:{{ services.glances.port }}/api/4/status"
+    method: GET
+  register: glances_api_test
+
+- name: Allow Glances on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ services.glances.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Glances on custom port - local network only"
+
+- name: Display Glances access information
+  ansible.builtin.debug:
+    msg: |
+      Glances system monitoring is now running!
+      Web Interface: http://{{ network.pi_ip }}:{{ services.glances.port }}
+      API Endpoint: http://{{ network.pi_ip }}:{{ services.glances.port }}/api/4/
+
+      Available API endpoints for Uptime Kuma integration:
+      - CPU: http://{{ network.pi_ip }}:{{ services.glances.port }}/api/4/cpu
+      - Memory: http://{{ network.pi_ip }}:{{ services.glances.port }}/api/4/mem
+      - Disk: http://{{ network.pi_ip }}:{{ services.glances.port }}/api/4/fs
+      - Network: http://{{ network.pi_ip }}:{{ services.glances.port }}/api/4/network

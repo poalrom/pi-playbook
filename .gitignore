@@ -1,0 +1,21 @@
+# Ansible specific
+*.retry
+.vault_pass
+vault.yml
+
+# Backup files
+*.backup
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+.ansible/

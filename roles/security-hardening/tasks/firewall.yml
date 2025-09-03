@@ -1,0 +1,64 @@
+---
+# =============================================================================
+# UFW Firewall Configuration
+# =============================================================================
+
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Reset UFW to defaults
+  ufw:
+    state: reset
+  when: not ansible_check_mode
+
+- name: Set UFW default policies
+  ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - { direction: "incoming", policy: "deny" }
+    - { direction: "outgoing", policy: "allow" }
+
+- name: Allow SSH on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ ssh.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "SSH on custom port - local network only"
+
+- name: Allow HTTP traffic
+  ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+    comment: "HTTP for reverse proxy"
+  when: firewall.allow_http | default(true)
+
+- name: Allow HTTPS traffic
+  ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+    comment: "HTTPS for reverse proxy"
+  when: firewall.allow_https | default(true)
+
+- name: Enable UFW
+  ufw:
+    state: enabled
+    logging: "on"
+
+- name: Set firewall configured flag
+  ansible.builtin.set_fact:
+    firewall_configured: true
+
+- name: Display UFW status
+  ansible.builtin.command: ufw status verbose
+  register: ufw_status
+  changed_when: false
+
+- name: Show firewall status
+  ansible.builtin.debug:
+    var: ufw_status.stdout_lines

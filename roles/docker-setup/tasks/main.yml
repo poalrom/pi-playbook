@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# Docker Installation and Configuration
+# =============================================================================
+
+- name: Check if Docker is already installed
+  ansible.builtin.command: docker --version
+  register: docker_check
+  changed_when: false
+  failed_when: false
+
+- name: Install Docker using convenience script
+  ansible.builtin.shell: curl -sSL https://get.docker.com | sh
+  tags: ["skip_ansible_lint"]
+  when: docker_check.rc != 0
+
+- name: Add admin user to docker group
+  ansible.builtin.user:
+    name: "{{ users.admin_user }}"
+    groups: docker
+    append: true
+
+- name: Install Docker Compose plugin
+  ansible.builtin.apt:
+    name: docker-compose-plugin
+    state: present
+
+- name: Start and enable Docker service
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Create Docker stacks directory
+  ansible.builtin.file:
+    path: "{{ docker.stacks_directory }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Verify Docker installation
+  ansible.builtin.command: docker compose version
+  register: docker_compose_version
+  changed_when: false
+
+- name: Display Docker Compose version
+  ansible.builtin.debug:
+    var: docker_compose_version.stdout

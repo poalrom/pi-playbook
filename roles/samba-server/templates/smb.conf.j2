@@ -1,0 +1,48 @@
+# =============================================================================
+# Samba Configuration - Secure Home Server Setup
+# =============================================================================
+
+[global]
+    # Network and Security Settings
+    workgroup = {{ services.samba.workgroup }}
+    server string = {{ services.samba.server_string }}
+    netbios name = {{ services.samba.netbios_name }}
+    
+    # Security Configuration
+    security = user
+    map to guest = never
+    guest account = nobody
+    
+    # Network Restrictions - Only allow local network access
+    hosts allow = {{ network.local_subnet }} 127.0.0.1 ::1
+    hosts deny = ALL
+    
+    # Protocol Settings - Disable older, insecure protocols
+    server min protocol = SMB2
+    client min protocol = SMB2
+    
+    # Logging
+    log file = /var/log/samba/log.%m
+    max log size = 1000
+    log level = 1
+    
+    # Performance and Compatibility
+    socket options = TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=524288 SO_SNDBUF=524288
+    
+    # Disable printing
+    load printers = no
+    printing = bsd
+    printcap name = /dev/null
+    disable spoolss = yes
+
+[shared]
+    comment = Shared Files
+    path = {{ storage.directories.samba }}
+    browseable = yes
+    writable = yes
+    guest ok = no
+    valid users = {{ users.admin_user }}
+    create mask = 0644
+    directory mask = 0755
+    force user = {{ users.admin_user }}
+    force group = {{ users.admin_user }}

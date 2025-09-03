@@ -1,0 +1,82 @@
+---
+# =============================================================================
+# Raspberry Pi Home Server Deployment Playbook
+# =============================================================================
+# This playbook configures a Raspberry Pi as a secure home server following
+# the comprehensive security guide. It handles both fresh installations and
+# existing setups gracefully.
+# =============================================================================
+
+# =============================================================================
+# Main Server Configuration Phase
+# =============================================================================
+- name: Configure Raspberry Pi Home Server
+  hosts: raspberry-pi
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - vault.yml
+
+  pre_tasks:
+    - name: Update package cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      tags: ["always"]
+
+  roles:
+    - role: security-hardening
+      tags: ["security"]
+      # Note: User management is handled in the separate user management phase above
+
+    - role: disk-mounting
+      tags: ["disk"]
+
+    - role: docker-setup
+      tags: ["docker"]
+
+    - role: nginx-proxy-manager
+      tags: ["nginx"]
+
+    - role: uptime-kuma
+      tags: ["kuma"]
+
+    - role: samba-server
+      tags: ["samba"]
+
+    - role: glances-monitoring
+      tags: ["glances"]
+
+    - role: photoprism
+      when: photoprism_admin_password != ""
+      tags: ["photoprism"]
+
+    - role: ddns-setup
+      when: myaddr_api_key != ""
+      tags: ["ddns"]
+
+  post_tasks:
+    - name: Display important information
+      ansible.builtin.debug:
+        msg: |
+          =============================================================================
+          Raspberry Pi Home Server Configuration Complete!
+          =============================================================================
+
+          Services configured:
+          - Nginx Proxy Manager: http://{{ network.pi_ip }}:{{ services.nginx_proxy_manager.port }}
+          - Uptime Kuma: http://{{ network.pi_ip }}:{{ services.uptime_kuma.port }}
+          - Glances: http://{{ network.pi_ip }}:{{ services.glances.port }}
+          - Samba: //{{ network.pi_ip }}/shared
+          - PhotoPrism: http://{{ network.pi_ip }}:{{ services.photoprism.port }}
+
+          SSH Access: ssh -p {{ ssh.port }} {{ users.admin_user }}@{{ network.pi_ip }}
+
+          Next Steps:
+          1. Configure port forwarding on your router (ports 80, 443 -> {{ network.pi_ip }})
+          2. Set up SSL certificates in Nginx Proxy Manager
+          3. Configure monitoring in Uptime Kuma
+
+          =============================================================================
+      tags: ["always"]

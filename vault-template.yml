@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# Ansible Vault Template for Sensitive Variables
+# =============================================================================
+# Copy this file to vault.yml and encrypt it with: ansible-vault encrypt vault.yml
+# Then include it in your playbook with: vars_files: - vault.yml
+
+# DDNS Configuration
+myaddr_api_key: "YOUR_MYADDR_API_KEY_HERE"
+ddns_domain: "YOUR_DDNS_DOMAIN_HERE.myaddr.tools"
+
+# Service Passwords
+samba_password: "YOUR_SAMBA_PASSWORD_HERE"
+
+# PhotoPrism Passwords
+photoprism_admin_password: "YOUR_PHOTOPRISM_ADMIN_PASSWORD_HERE"
+photoprism_db_password: "YOUR_PHOTOPRISM_DB_PASSWORD_HERE"
+photoprism_db_root_password: "YOUR_PHOTOPRISM_DB_ROOT_PASSWORD_HERE"

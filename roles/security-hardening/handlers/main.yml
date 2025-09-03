@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# Security Hardening Handlers
+# =============================================================================
+
+- name: Restart ssh
+  ansible.builtin.systemd:
+    name: ssh
+    state: restarted
+  listen: "restart ssh"
+
+- name: Restart fail2ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: restarted
+  listen: "restart fail2ban"
+
+- name: Reboot if needed
+  ansible.builtin.reboot:
+    reboot_timeout: 30
+    test_command: uptime
+  listen: "reboot if needed"
+  when: system_upgrade.changed and (system_upgrade.stdout is search("linux-image") or system_upgrade.stdout is search("kernel"))

@@ -1,0 +1,88 @@
+---
+# =============================================================================
+# Raspberry Pi Home Server Configuration Variables
+# =============================================================================
+
+# Network Configuration
+network:
+  local_subnet: "192.168.178.0/24"
+  pi_ip: "192.168.178.112"
+
+# User Management
+users:
+  admin_user: "home-pi"
+
+# SSH Configuration
+ssh:
+  port: 2312
+  disable_password_auth: true
+  public_key_path: "~/.ssh/id_ed25519.pub"
+
+# Firewall Rules
+firewall:
+  ssh_port: 2312
+  allow_http: true
+  allow_https: true
+  samba_ports:
+    udp: [137, 138]
+    tcp: [139, 445]
+# Fail2Ban Configuration
+fail2ban:
+  ssh_maxretry: 3
+  ssh_bantime: "1h"
+  ssh_findtime: "10m"
+
+# DDNS Configuration
+ddns:
+  domain: "{{ ddns_domain }}"
+  service_url: "https://myaddr.tools/update"
+  update_interval: "hourly"
+
+# External Storage
+storage:
+  device: "/dev/sda2"
+  mount_point: "/media/pi/home"
+  filesystem: "exfat"
+  directories:
+    samba: "/media/pi/home/samba/shared"
+    photoprism: "/media/pi/home/photoprism"
+    photoprism_database: "/opt/stacks/photoprism/database"
+
+# Docker Configuration
+docker:
+  stacks_directory: "/opt/stacks"
+
+# Service Configuration
+services:
+  nginx_proxy_manager:
+    port: 81
+    http_port: 80
+    https_port: 443
+
+  uptime_kuma:
+    port: 3001
+
+  samba:
+    workgroup: "WORKGROUP"
+    server_string: "Pi Home Server"
+    netbios_name: "PISERVER"
+
+  photoprism:
+    port: 2342
+    domain: "photo.{{ ddns_domain }}"
+    public_access: true
+
+  glances:
+    port: 61208
+
+# Security Settings
+security:
+  ufw_default_incoming: "deny"
+  ufw_default_outgoing: "allow"
+  # ufw-docker integration for Docker container firewall control
+  ufw_docker_enabled: true
+
+# System Settings
+system:
+  timezone: "UTC" # Change as needed
+  locale: "en_US.UTF-8"

@@ -1,0 +1,97 @@
+---
+# =============================================================================
+# Samba File Server Configuration
+# =============================================================================
+
+- name: Install Samba packages
+  ansible.builtin.apt:
+    name:
+      - samba
+      - samba-common-bin
+      - smbclient
+    state: present
+
+- name: Check if external storage is mounted
+  ansible.builtin.stat:
+    path: "{{ storage.mount_point }}"
+  register: external_storage_check
+
+- name: Verify external storage mount
+  ansible.builtin.assert:
+    that: external_storage_check.stat.exists
+    fail_msg: "External storage not found at {{ storage.mount_point }}. Please mount it first."
+
+- name: Create Samba share directory
+  ansible.builtin.file:
+    path: "{{ storage.directories.samba }}"
+    state: directory
+
+- name: Configure Samba
+  ansible.builtin.template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    backup: true
+  notify: Restart samba
+
+- name: Test Samba configuration
+  ansible.builtin.command: testparm -s
+  register: samba_config_test
+  changed_when: false
+
+- name: Display Samba configuration test results
+  ansible.builtin.debug:
+    var: samba_config_test.stdout_lines
+
+- name: Create Samba user
+  ansible.builtin.shell: |
+    (echo "{{ samba_password }}"; echo "{{ samba_password }}") | smbpasswd -a {{ users.admin_user }}
+  register: samba_user_result
+  changed_when: "'Added user' in samba_user_result.stdout"
+
+- name: Enable Samba user
+  ansible.builtin.command: smbpasswd -e {{ users.admin_user }}
+  changed_when: false
+
+- name: Start and enable Samba services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - smbd
+    - nmbd
+
+- name: Allow Samba UDP ports from local network
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: udp
+    src: "{{ network.local_subnet }}"
+    comment: "Samba UDP"
+  loop: "{{ firewall.samba_ports.udp }}"
+
+- name: Allow Samba TCP ports from local network
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Samba TCP"
+  loop: "{{ firewall.samba_ports.tcp }}"
+
+- name: Test Samba share access
+  ansible.builtin.command: smbclient -L localhost -U {{ users.admin_user }}%{{ samba_password }}
+  register: samba_test
+  changed_when: false
+
+- name: Display Samba access information
+  ansible.builtin.debug:
+    msg: |
+      Samba file server is now running!
+      Share path: //{{ network.pi_ip }}/shared
+      Username: {{ users.admin_user }}
+
+      Access from:
+      - Windows: \\{{ network.pi_ip }}\shared
+      - macOS: smb://{{ network.pi_ip }}/shared
+      - Linux: smbclient //{{ network.pi_ip }}/shared -U {{ users.admin_user }}

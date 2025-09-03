@@ -1,0 +1,10 @@
+[Unit]
+Description=Run myaddrdns.service {{ ddns.update_interval }}
+Requires=myaddrdns.service
+
+[Timer]
+OnCalendar={{ ddns.update_interval }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,94 @@
+---
+# =============================================================================
+# Fail2Ban Intrusion Prevention Setup
+# =============================================================================
+
+- name: Install Fail2Ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+
+- name: Create Fail2Ban local configuration directory
+  ansible.builtin.file:
+    path: /etc/fail2ban
+    state: directory
+    mode: "0755"
+
+- name: Create custom Fail2Ban jail.local configuration
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.local
+    backup: true
+    mode: "0755"
+    content: |
+      # Fail2Ban local configuration - Ansible managed
+      # This file overrides settings from jail.conf
+
+      [DEFAULT]
+      # Ban time in seconds (1 hour)
+      bantime = {{ fail2ban.ssh_bantime }}
+
+      # Find time window
+      findtime = {{ fail2ban.ssh_findtime | default('10m') }}
+
+      # Number of failures before ban
+      maxretry = {{ fail2ban.ssh_maxretry }}
+
+      # Ignore local network
+      ignoreip = 127.0.0.1/8 ::1 {{ network.local_subnet }}
+
+      [sshd]
+      backend = systemd
+      enabled = true
+      port = {{ ssh.port }}
+      logpath = /var/log/auth.log
+      maxretry = {{ fail2ban.ssh_maxretry }}
+      bantime = {{ fail2ban.ssh_bantime }}
+      findtime = {{ fail2ban.ssh_findtime | default('10m') }}
+  notify: restart fail2ban
+
+- name: Start and enable Fail2Ban service
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: started
+    enabled: true
+
+- name: Wait for Fail2Ban socket to be available
+  ansible.builtin.wait_for:
+    path: /var/run/fail2ban/fail2ban.sock
+    timeout: 30
+
+- name: Check Fail2Ban status
+  ansible.builtin.command: fail2ban-client status
+  register: fail2ban_status
+  changed_when: false
+
+- name: Display Fail2Ban status
+  ansible.builtin.debug:
+    msg: |
+      Fail2Ban Status:
+      {% if fail2ban_status.rc == 0 %}
+      {{ fail2ban_status.stdout }}
+      {% else %}
+      Failed to get Fail2Ban status. Error: {{ fail2ban_status.stderr | default('Unknown error') }}
+      Service may still be starting up or there may be a configuration issue.
+      {% endif %}
+
+- name: Check SSH jail status
+  ansible.builtin.command: fail2ban-client status sshd
+  register: fail2ban_ssh_status
+  changed_when: false
+  when: fail2ban_status.rc == 0
+
+- name: Display SSH jail status
+  ansible.builtin.debug:
+    msg: |
+      SSH Jail Status:
+      {% if fail2ban_ssh_status.rc == 0 %}
+      {{ fail2ban_ssh_status.stdout }}
+      {% else %}
+      SSH jail not available or not configured properly.
+      {% if fail2ban_ssh_status.stderr is defined %}
+      Error: {{ fail2ban_ssh_status.stderr }}
+      {% endif %}
+      {% endif %}
+  when: fail2ban_ssh_status is defined

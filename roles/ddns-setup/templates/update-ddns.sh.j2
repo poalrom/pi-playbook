@@ -1,0 +1,29 @@
+#!/bin/bash
+# =============================================================================
+# DDNS Update Script for myaddr.tools
+# =============================================================================
+
+# Configuration
+API_KEY="{{ myaddr_api_key }}"
+UPDATE_URL="{{ ddns.service_url }}"
+DOMAIN="{{ ddns.domain }}"
+
+# Log function
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | logger -t ddns-update
+}
+
+# Perform the update
+if [ -n "$API_KEY" ]; then
+    RESPONSE=$(curl -s -d "key=$API_KEY" -d "ip=self" "$UPDATE_URL")
+    
+    if [ $? -eq 0 ]; then
+        log "DDNS update successful for $DOMAIN: $RESPONSE"
+    else
+        log "DDNS update failed for $DOMAIN"
+        exit 1
+    fi
+else
+    log "No API key provided, skipping DDNS update"
+    exit 1
+fi

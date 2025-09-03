@@ -1,0 +1,62 @@
+---
+# =============================================================================
+# SSH Hardening Configuration
+# =============================================================================
+
+- name: Configure SSH daemon
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    backup: true
+  loop:
+    - { regexp: "^#?Port ", line: "Port {{ ssh.port }}" }
+    - { regexp: "^#?PasswordAuthentication ", line: "PasswordAuthentication no" }
+    - { regexp: "^#?PubkeyAuthentication ", line: "PubkeyAuthentication yes" }
+    - { regexp: "^#?PermitRootLogin ", line: "PermitRootLogin no" }
+    - { regexp: "^#?PermitEmptyPasswords ", line: "PermitEmptyPasswords no" }
+    - { regexp: "^#?ChallengeResponseAuthentication ", line: "ChallengeResponseAuthentication no" }
+    - { regexp: "^#?UsePAM ", line: "UsePAM yes" }
+    - { regexp: "^#?X11Forwarding ", line: "X11Forwarding no" }
+    - { regexp: "^#?MaxAuthTries ", line: "MaxAuthTries 3" }
+    - { regexp: "^#?ClientAliveInterval ", line: "ClientAliveInterval 300" }
+    - { regexp: "^#?ClientAliveCountMax ", line: "ClientAliveCountMax 2" }
+  notify: restart ssh
+
+- name: Validate SSH configuration
+  ansible.builtin.command: sshd -t
+  register: sshd_test
+  changed_when: false
+  failed_when: sshd_test.rc != 0
+
+- name: Check if UFW is installed
+  ansible.builtin.command: which ufw
+  register: ufw_check
+  changed_when: false
+  failed_when: false
+
+- name: Install UFW if not present (for SSH port configuration)
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+  when: ufw_check.rc != 0
+
+- name: Allow new SSH port in UFW before restarting SSH (local network only)
+  ufw:
+    rule: allow
+    port: "{{ ssh.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+  when: firewall_configured is not defined
+  # Note: This is a temporary rule. Full firewall configuration with ufw-docker
+  # will be applied later in the firewall.yml task file
+
+- name: Restart SSH service
+  ansible.builtin.systemd:
+    name: ssh
+    state: restarted
+  when: sshd_test.rc == 0
+
+- name: Switch to default ssh port
+  ansible.builtin.set_fact:
+    ansible_port: "{{ ssh.port }}"
