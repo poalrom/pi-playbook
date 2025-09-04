@@ -81,9 +81,7 @@
     msg: |
       PhotoPrism is now running!
       Local Access: http://{{ network.pi_ip }}:{{ services.photoprism.port }}
-      {% if services.photoprism.domain %}
-      Public Domain: {{ services.photoprism.domain }}
-      {% endif %}
+      Public Domain: https://{{ services.photoprism.domain }} (will be set via Nginx Proxy Manager)
 
       Default Login: admin / {{ photoprism_admin_password }}
 
@@ -95,5 +93,5 @@
 
       Next Steps:
       1. Verify restored photos in the originals directory
-      2. Configure public access via Nginx Proxy Manager if desired
+      2. Configure public access via Nginx Proxy Manager
       3. Set up SSL certificate for the domain

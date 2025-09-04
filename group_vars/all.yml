@@ -58,6 +58,7 @@ services:
     port: 81
     http_port: 80
     https_port: 443
+    config_path: "{{ docker.stacks_directory }}/nginx-proxy-manager"
 
   uptime_kuma:
     port: 3001
@@ -77,7 +78,7 @@ services:
 
   obsidian_livesync:
     port: 5984
-    domain: "https://vault.{{ ddns_domain }}"
+    domain: "vault.{{ ddns_domain }}"
     config_path: "{{ docker.stacks_directory }}/obsidian-livesync"
 
 # Security Settings

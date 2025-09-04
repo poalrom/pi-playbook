@@ -1,0 +1,12 @@
+# npm-api.conf
+
+## Nginx proxy IP address (your Nginx IP/port)
+NGINX_IP="127.0.0.1"
+NGINX_PORT="81"
+
+## Existing user (user and password) on NPM
+API_USER="{{ nginx_proxy_manager_admin_email }}"
+API_PASS="{{ nginx_proxy_manager_admin_password }}"
+
+# Optional (only if you want in other /path than script directory)
+# DATA_DIR="/path/nginx_backup/dir"

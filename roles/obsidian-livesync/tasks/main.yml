@@ -44,7 +44,7 @@
   ansible.builtin.shell: |
     {{ ansible_env.HOME }}/.deno/bin/deno run -A https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/utils/flyio/generate_setupuri.ts
   environment:
-    hostname: "{{ services.obsidian_livesync.domain }}"
+    hostname: "https://{{ services.obsidian_livesync.domain }}"
     database: "obsidian-livesync"
     passphrase: "{{ obsidian_livesync_passphrase }}"
     username: "{{ obsidian_livesync_db_user }}"

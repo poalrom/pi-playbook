@@ -31,4 +31,5 @@
       - gnupg
       - lsb-release
       - rsync
+      - jq
     state: present

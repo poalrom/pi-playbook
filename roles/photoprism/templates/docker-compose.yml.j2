@@ -14,7 +14,7 @@ services:
       PHOTOPRISM_ADMIN_USER: "admin"
       PHOTOPRISM_ADMIN_PASSWORD: "{{ photoprism_admin_password }}"
       PHOTOPRISM_AUTH_MODE: "password"
-      PHOTOPRISM_SITE_URL: "{% if services.photoprism.domain %}https://{{ services.photoprism.domain }}/{% else %}http://{{ network.pi_ip }}:{{ services.photoprism.port }}/{% endif %}"
+      PHOTOPRISM_SITE_URL: "https://{{ services.photoprism.domain }}"
       PHOTOPRISM_DISABLE_TLS: "true"
       PHOTOPRISM_DEFAULT_TLS: "true"
       PHOTOPRISM_ORIGINALS_LIMIT: 30000

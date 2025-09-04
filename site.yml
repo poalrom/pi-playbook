@@ -36,9 +36,6 @@
     - role: docker-setup
       tags: ["docker"]
 
-    - role: nginx-proxy-manager
-      tags: ["nginx"]
-
     - role: uptime-kuma
       tags: ["kuma"]
 
@@ -55,6 +52,9 @@
     - role: obsidian-livesync
       when: obsidian_livesync_db_password != ""
       tags: ["obsidian"]
+
+    - role: nginx-proxy-manager
+      tags: ["nginx"]
 
     - role: ddns-setup
       when: myaddr_api_key != ""
@@ -74,7 +74,7 @@
           - Glances: http://{{ network.pi_ip }}:{{ services.glances.port }}
           - Samba: //{{ network.pi_ip }}/shared
           - PhotoPrism: http://{{ network.pi_ip }}:{{ services.photoprism.port }}
-          - Obsidian LiveSync: {{ services.obsidian_livesync.domain }}
+          - Obsidian LiveSync: https://{{ services.obsidian_livesync.domain }}
 
           SSH Access: ssh -p {{ ssh.port }} {{ users.admin_user }}@{{ network.pi_ip }}
 

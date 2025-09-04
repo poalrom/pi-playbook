@@ -5,7 +5,7 @@
 
 - name: Create Nginx Proxy Manager directory
   ansible.builtin.file:
-    path: "{{ docker.stacks_directory }}/nginx-proxy-manager"
+    path: "{{ services.nginx_proxy_manager.config_path }}"
     state: directory
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
@@ -13,7 +13,7 @@
 
 - name: Create Nginx Proxy Manager data directories
   ansible.builtin.file:
-    path: "{{ docker.stacks_directory }}/nginx-proxy-manager/{{ item }}"
+    path: "{{ services.nginx_proxy_manager.config_path }}/{{ item }}"
     state: directory
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
@@ -25,7 +25,7 @@
 - name: Create Nginx Proxy Manager docker-compose.yml
   ansible.builtin.template:
     src: docker-compose.yml.j2
-    dest: "{{ docker.stacks_directory }}/nginx-proxy-manager/compose.yml"
+    dest: "{{ services.nginx_proxy_manager.config_path }}/compose.yml"
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
     mode: "0644"
@@ -33,7 +33,7 @@
 
 - name: Start Nginx Proxy Manager
   community.docker.docker_compose_v2:
-    project_src: "{{ docker.stacks_directory }}/nginx-proxy-manager"
+    project_src: "{{ services.nginx_proxy_manager.config_path }}"
     state: present
 
 - name: Wait for Nginx Proxy Manager to be ready
@@ -51,10 +51,41 @@
     src: "{{ network.local_subnet }}"
     comment: "Nginx Proxy Manager on custom port - local network only"
 
+- name: Download Nginx Proxy Manager Bash API
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-Bash-API/main/npm-api.sh
+    dest: "{{ services.nginx_proxy_manager.config_path }}/npm-api.sh"
+    mode: "0755"
+
+- name: Create Nginx Proxy Manager npm-api.conf
+  ansible.builtin.template:
+    src: npm-api.conf.j2
+    dest: "{{ services.nginx_proxy_manager.config_path }}/npm-api.conf"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+
+- name: Add PhotoPrism to Nginx Proxy Manager # noqa: no-changed-when
+  ansible.builtin.shell: |
+    {{ services.nginx_proxy_manager.config_path }}/npm-api.sh \
+    --host-create {{ services.photoprism.domain }} \
+    --forward-host 127.0.0.1 \
+    --forward-port {{ services.photoprism.port }} \
+    -y                 # Auto confirm
+
+- name: Add Obsidian LiveSync to Nginx Proxy Manager # noqa: no-changed-when
+  ansible.builtin.shell: |
+    {{ services.nginx_proxy_manager.config_path }}/npm-api.sh \
+    --host-create {{ services.obsidian_livesync.domain }} \
+    --forward-host 127.0.0.1 \
+    --forward-port {{ services.obsidian_livesync.port }} \
+    -y                 # Auto confirm
+
 - name: Display Nginx Proxy Manager access information
   ansible.builtin.debug:
     msg: |
       Nginx Proxy Manager is now running!
       Access it at: http://{{ network.pi_ip }}:{{ services.nginx_proxy_manager.port }}
-      Default credentials: admin@example.com / changeme
+      Default credentials: {{ nginx_proxy_manager_admin_email }} / {{ nginx_proxy_manager_admin_password }}
       IMPORTANT: Change these credentials immediately after first login!
+      IMPORTANT: Don't forget to enable SSL and security options for the domains!

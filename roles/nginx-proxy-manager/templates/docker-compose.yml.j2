@@ -7,3 +7,6 @@ services:
       - ./data:/data
       - ./letsencrypt:/etc/letsencrypt
     network_mode: host
+    environment:
+      INITIAL_ADMIN_EMAIL: {{ nginx_proxy_manager_admin_email }}
+      INITIAL_ADMIN_PASSWORD: {{ nginx_proxy_manager_admin_password }}

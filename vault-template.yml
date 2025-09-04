@@ -22,3 +22,7 @@ photoprism_db_root_password: "YOUR_PHOTOPRISM_DB_ROOT_PASSWORD_HERE"
 obsidian_livesync_db_user: "your-couchdb-user"
 obsidian_livesync_db_password: "your-couchdb-password"
 obsidian_livesync_passphrase: "your-obsidian-livesync-passphrase"
+
+# Nginx Proxy Manager Configuration
+nginx_proxy_manager_admin_email: "admin@example.com"
+nginx_proxy_manager_admin_password: "changeme"
