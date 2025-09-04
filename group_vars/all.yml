@@ -75,6 +75,11 @@ services:
   glances:
     port: 61208
 
+  obsidian_livesync:
+    port: 5984
+    domain: "https://vault.{{ ddns_domain }}"
+    config_path: "{{ docker.stacks_directory }}/obsidian-livesync"
+
 # Security Settings
 security:
   ufw_default_incoming: "deny"

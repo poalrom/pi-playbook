@@ -52,6 +52,10 @@
       when: photoprism_admin_password != ""
       tags: ["photoprism"]
 
+    - role: obsidian-livesync
+      when: obsidian_livesync_db_password != ""
+      tags: ["obsidian"]
+
     - role: ddns-setup
       when: myaddr_api_key != ""
       tags: ["ddns"]
@@ -70,6 +74,7 @@
           - Glances: http://{{ network.pi_ip }}:{{ services.glances.port }}
           - Samba: //{{ network.pi_ip }}/shared
           - PhotoPrism: http://{{ network.pi_ip }}:{{ services.photoprism.port }}
+          - Obsidian LiveSync: {{ services.obsidian_livesync.domain }}
 
           SSH Access: ssh -p {{ ssh.port }} {{ users.admin_user }}@{{ network.pi_ip }}
 

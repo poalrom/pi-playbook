@@ -103,7 +103,8 @@ ansible-playbook -i inventory.yml site.yml
 
 ### Services
 - **Samba**: Secure file sharing (local network only)
-- **PhotoPrism**: AI-powered photo management (optional, public)
+- **PhotoPrism**: AI-powered photo management (public)
+- **Obsidian LiveSync**: CouchDB-based sync server for Obsidian vaults (public)
 
 ## 🔧 Service Access
 
@@ -116,6 +117,7 @@ After deployment, services are available at:
 | **Glances** | `http://PI_IP:61208` | System monitoring |
 | **Samba** | `//PI_IP/shared` | File sharing |
 | **PhotoPrism** | `http://PI_IP:2342` | Photo management |
+| **Obsidian LiveSync** | `http://PI_IP:5984` | Obsidian sync server |
 | **SSH** | `ssh -p 2312 home-pi@PI_IP` | Secure shell access |
 
 ## 🔄 Post-Deployment Steps
@@ -189,6 +191,20 @@ cp -r /path/to/photos/* /media/pi/home/photoprism/originals/
 # Domain: photo.yourdomain.com → photoprism:2342
 ```
 
+### 6. Obsidian LiveSync Setup
+
+**Initial configuration**:
+```bash
+# CouchDB runs on http://PI_IP:5984
+# Login with credentials from vault.yml
+
+# Setup URI is displayed after deployment - copy it to configure 
+# the Obsidian LiveSync plugin in your vault
+
+# Configure public access via Nginx Proxy Manager
+# Domain: vault.yourdomain.com → obsidian_livesync_couchdb:5984
+```
+
 ## 🛠️ Selective Deployment
 
 Deploy specific components using tags:
@@ -208,6 +224,9 @@ ansible-playbook -i inventory.yml site.yml --tags samba
 
 # Photo management
 ansible-playbook -i inventory.yml site.yml --tags photoprism
+
+# Obsidian sync server
+ansible-playbook -i inventory.yml site.yml --tags obsidian
 
 # Dynamic DNS
 ansible-playbook -i inventory.yml site.yml --tags ddns

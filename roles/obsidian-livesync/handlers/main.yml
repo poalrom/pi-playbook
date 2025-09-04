@@ -1,0 +1,6 @@
+---
+- name: Restart obsidian-livesync
+  community.docker.docker_compose_v2:
+    project_src: "{{ services.obsidian_livesync.config_path }}"
+    state: present
+    recreate: always

@@ -16,3 +16,9 @@ samba_password: "YOUR_SAMBA_PASSWORD_HERE"
 photoprism_admin_password: "YOUR_PHOTOPRISM_ADMIN_PASSWORD_HERE"
 photoprism_db_password: "YOUR_PHOTOPRISM_DB_PASSWORD_HERE"
 photoprism_db_root_password: "YOUR_PHOTOPRISM_DB_ROOT_PASSWORD_HERE"
+
+# Obsidian LiveSync Configuration
+# username is provided via vault because the db is publicly accessible
+obsidian_livesync_db_user: "your-couchdb-user"
+obsidian_livesync_db_password: "your-couchdb-password"
+obsidian_livesync_passphrase: "your-obsidian-livesync-passphrase"
