@@ -42,7 +42,7 @@ ddns:
 storage:
   device: "/dev/sda2"
   mount_point: "/media/pi/home"
-  filesystem: "exfat"
+  filesystem: "exfat-fuse"
   directories:
     samba: "/media/pi/home/samba/shared"
     photoprism: "/media/pi/home/photoprism"

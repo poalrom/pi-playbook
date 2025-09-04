@@ -1,4 +1,10 @@
 ---
+
+- name: Install exfat-fuse
+  ansible.builtin.apt:
+    name: exfat-fuse
+    state: present
+
 - name: Create mount directory for {{ storage.device }}
   ansible.builtin.file:
     path: "{{ storage.mount_point }}"
@@ -13,6 +19,6 @@
     path: "{{ storage.mount_point }}"
     fstype: "{{ storage.filesystem }}"
     state: mounted
-    opts: defaults
+    opts: defaults,uid=1000,gid=1000,dmask=000,fmask=111,nofail
     dump: 0
     passno: 2
