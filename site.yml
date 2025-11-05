@@ -45,9 +45,9 @@
     - role: glances-monitoring
       tags: ["glances"]
 
-    - role: photoprism
-      when: photoprism_admin_password != ""
-      tags: ["photoprism"]
+    - role: immich
+      when: immich_db_password != ""
+      tags: ["immich"]
 
     - role: obsidian-livesync
       when: obsidian_livesync_db_password != ""
@@ -73,7 +73,7 @@
           - Uptime Kuma: http://{{ network.pi_ip }}:{{ services.uptime_kuma.port }}
           - Glances: http://{{ network.pi_ip }}:{{ services.glances.port }}
           - Samba: //{{ network.pi_ip }}/shared
-          - PhotoPrism: http://{{ network.pi_ip }}:{{ services.photoprism.port }}
+          - Immich: http://{{ network.pi_ip }}:{{ services.immich.port }}
           - Obsidian LiveSync: https://{{ services.obsidian_livesync.domain }}
 
           SSH Access: ssh -p {{ ssh.port }} {{ users.admin_user }}@{{ network.pi_ip }}

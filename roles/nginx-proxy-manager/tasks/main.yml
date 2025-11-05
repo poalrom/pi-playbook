@@ -65,12 +65,12 @@
     group: "{{ users.admin_user }}"
     mode: "0644"
 
-- name: Add PhotoPrism to Nginx Proxy Manager # noqa: no-changed-when
+- name: Add Immich to Nginx Proxy Manager # noqa: no-changed-when
   ansible.builtin.shell: |
     {{ services.nginx_proxy_manager.config_path }}/npm-api.sh \
-    --host-create {{ services.photoprism.domain }} \
+    --host-create {{ services.immich.domain }} \
     --forward-host 127.0.0.1 \
-    --forward-port {{ services.photoprism.port }} \
+    --forward-port {{ services.immich.port }} \
     -y                 # Auto confirm
 
 - name: Add Obsidian LiveSync to Nginx Proxy Manager # noqa: no-changed-when

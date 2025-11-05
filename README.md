@@ -103,7 +103,7 @@ ansible-playbook -i inventory.yml site.yml
 
 ### Services
 - **Samba**: Secure file sharing (local network only)
-- **PhotoPrism**: AI-powered photo management (public)
+- **Immich**: Self-hosted photo and video management (public)
 - **Obsidian LiveSync**: CouchDB-based sync server for Obsidian vaults (public)
 
 ## 🔧 Service Access
@@ -116,7 +116,7 @@ After deployment, services are available at:
 | **Uptime Kuma** | `http://PI_IP:3001` | Monitoring dashboard |
 | **Glances** | `http://PI_IP:61208` | System monitoring |
 | **Samba** | `//PI_IP/shared` | File sharing |
-| **PhotoPrism** | `http://PI_IP:2342` | Photo management |
+| **Immich** | `http://PI_IP:2283` | Photo & video management |
 | **Obsidian LiveSync** | `http://PI_IP:5984` | Obsidian sync server |
 | **SSH** | `ssh -p 2312 home-pi@PI_IP` | Secure shell access |
 
@@ -140,7 +140,7 @@ In Nginx Proxy Manager (`http://PI_IP:81`):
 Example configuration:
 ```
 Domain: photo.yourdomain.com
-Forward to: photoprism:2342
+Forward to: immich-server:2283
 SSL: Request new certificate ✓
 Force SSL: ✓
 ```
@@ -177,18 +177,22 @@ Force SSL: ✓
 sudo smbpasswd -a home-pi
 ```
 
-### 5. PhotoPrism Setup
+### 5. Immich Setup
 
 **Initial configuration**:
 ```bash
-# Access locally first: http://PI_IP:2342
-# Login with credentials from vault.yml
+# Access locally first: http://PI_IP:2283
+# Create your admin account on first access
 
-# Upload photos to external storage
-cp -r /path/to/photos/* /media/pi/home/photoprism/originals/
+# Upload photos via web interface or mobile app
+# External storage location: /media/pi/home/immich/library
 
 # Configure public access via Nginx Proxy Manager
-# Domain: photo.yourdomain.com → photoprism:2342
+# Domain: photo.yourdomain.com → immich-server:3001
+
+# Install mobile app from:
+# iOS: App Store - "Immich"
+# Android: Play Store - "Immich"
 ```
 
 ### 6. Obsidian LiveSync Setup
@@ -222,8 +226,8 @@ ansible-playbook -i inventory.yml site.yml --tags kuma,glances
 # File services
 ansible-playbook -i inventory.yml site.yml --tags samba
 
-# Photo management
-ansible-playbook -i inventory.yml site.yml --tags photoprism
+# Photo & video management
+ansible-playbook -i inventory.yml site.yml --tags immich
 
 # Obsidian sync server
 ansible-playbook -i inventory.yml site.yml --tags obsidian

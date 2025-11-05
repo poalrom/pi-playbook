@@ -12,10 +12,8 @@ ddns_domain: "YOUR_DDNS_DOMAIN_HERE.myaddr.tools"
 # Service Passwords
 samba_password: "YOUR_SAMBA_PASSWORD_HERE"
 
-# PhotoPrism Passwords
-photoprism_admin_password: "YOUR_PHOTOPRISM_ADMIN_PASSWORD_HERE"
-photoprism_db_password: "YOUR_PHOTOPRISM_DB_PASSWORD_HERE"
-photoprism_db_root_password: "YOUR_PHOTOPRISM_DB_ROOT_PASSWORD_HERE"
+# Immich Passwords
+immich_db_password: "YOUR_IMMICH_DB_PASSWORD_HERE"
 
 # Obsidian LiveSync Configuration
 # username is provided via vault because the db is publicly accessible

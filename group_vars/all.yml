@@ -45,8 +45,8 @@ storage:
   filesystem: "exfat-fuse"
   directories:
     samba: "/media/pi/home/samba/shared"
-    photoprism: "/media/pi/home/photoprism"
-    photoprism_database: "/opt/stacks/photoprism/database"
+    immich_library: "/media/pi/home/immich/library"
+    immich_database: "/opt/stacks/immich/database"
 
 # Docker Configuration
 docker:
@@ -68,8 +68,8 @@ services:
     server_string: "Pi Home Server"
     netbios_name: "PISERVER"
 
-  photoprism:
-    port: 2342
+  immich:
+    port: 2283
     domain: "photo.{{ ddns_domain }}"
     public_access: true
 

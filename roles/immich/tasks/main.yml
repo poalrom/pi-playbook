@@ -1,0 +1,92 @@
+---
+# =============================================================================
+# Immich Deployment
+# =============================================================================
+
+- name: Check if external storage is mounted
+  ansible.builtin.stat:
+    path: "{{ storage.mount_point }}"
+  register: immich_external_storage_check
+
+- name: Verify external storage mount
+  ansible.builtin.assert:
+    that: immich_external_storage_check.stat.exists
+    fail_msg: "External storage not found at {{ storage.mount_point }}. Please mount it first."
+
+- name: Create Immich database directory on main drive
+  ansible.builtin.file:
+    path: "{{ storage.directories.immich_database }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create Immich Docker stack directory
+  ansible.builtin.file:
+    path: "{{ docker.stacks_directory }}/immich"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create Immich upload directory on external storage
+  ansible.builtin.file:
+    path: "{{ storage.directories.immich_library }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create Immich docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ docker.stacks_directory }}/immich/compose.yml"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+  notify: Restart immich
+
+- name: Create Immich environment file
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "{{ docker.stacks_directory }}/immich/.env"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+
+- name: Start Immich
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker.stacks_directory }}/immich"
+    state: present
+
+- name: Allow Immich on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ services.immich.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Immich on custom port - local network only"
+
+- name: Wait for Immich to be ready
+  ansible.builtin.wait_for:
+    host: "{{ network.pi_ip }}"
+    port: "{{ services.immich.port }}"
+    delay: 30
+    timeout: 180
+
+- name: Display Immich access information
+  ansible.builtin.debug:
+    msg: |
+      Immich is now running!
+      Local Access: http://{{ network.pi_ip }}:{{ services.immich.port }}
+      Public Domain: https://{{ services.immich.domain }} (will be set via Nginx Proxy Manager)
+
+      Directory Structure:
+      - Upload Library: {{ storage.directories.immich_library }}
+      - Database: {{ storage.directories.immich_database }}
+
+      Next Steps:
+      1. Create your admin account on first access
+      2. Configure public access via Nginx Proxy Manager
+      3. Set up SSL certificate for the domain
+      4. Install the mobile app to start uploading photos
