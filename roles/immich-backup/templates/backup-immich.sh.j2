@@ -1,0 +1,104 @@
+#!/bin/bash
+# =============================================================================
+# Immich Backup Script
+# =============================================================================
+# This script backs up Immich database and critical filesystem folders
+# to both local storage and Yandex Disk using rclone.
+# =============================================================================
+
+set -euo pipefail
+
+# Configuration
+BACKUP_BASE_DIR="{{ backup.local_directory }}"
+TIMESTAMP=$(date +"%Y-%m-%d-%H%M%S")
+RCLONE_REMOTE="{{ backup.rclone_remote }}"
+RCLONE_PATH="{{ backup.rclone_path }}"
+RETENTION_DAYS="{{ backup.retention_days }}"
+
+# Immich paths
+IMMICH_LIBRARY="{{ storage.directories.immich_library }}"
+IMMICH_DB_CONTAINER="immich_postgres"
+DB_USERNAME="postgres"
+
+# Log function
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | logger -t immich-backup
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"
+}
+
+# Error handling
+error_exit() {
+    log "ERROR: $1"
+    exit 1
+}
+
+# Start backup
+log "Starting Immich backup to ${BACKUP_BASE_DIR}"
+
+# Create backup base directory and log directory
+mkdir -p "${BACKUP_BASE_DIR}" || error_exit "Failed to create backup directory"
+mkdir -p /media/pi/home/log || true
+
+# Backup database
+log "Backing up database..."
+if docker exec "${IMMICH_DB_CONTAINER}" pg_dumpall --clean --if-exists --username="${DB_USERNAME}" | nice -n 10 gzip > "${BACKUP_BASE_DIR}/${TIMESTAMP}-database.sql.gz"; then
+    log "Database backup completed successfully"
+else
+    error_exit "Database backup failed"
+fi
+
+# Backup and compress critical filesystem folders
+log "Backing up and compressing filesystem folders..."
+
+# Function to backup and compress a folder
+backup_and_compress_folder() {
+    local source_path="$1"
+    local folder_name="$2"
+    local archive_name="${TIMESTAMP}-${folder_name}.tar.gz"
+    
+    if [ -d "${source_path}" ]; then
+        log "Backing up ${folder_name} folder..."
+        if command -v tar &> /dev/null; then
+            cd "${BACKUP_BASE_DIR}"
+            if nice -n 10 tar -czf "${archive_name}" -C "$(dirname "${source_path}")" "$(basename "${source_path}")"; then
+                log "${folder_name} folder backed up and compressed successfully"
+            else
+                log "WARNING: Failed to compress ${folder_name} folder"
+            fi
+        else
+            log "WARNING: tar not found, copying ${folder_name} folder without compression"
+            local uncompressed_dir="${BACKUP_BASE_DIR}/${TIMESTAMP}-${folder_name}"
+            if mkdir -p "${uncompressed_dir}" && cp -r "${source_path}" "${uncompressed_dir}/"; then
+                log "${folder_name} folder backed up successfully (uncompressed)"
+            else
+                log "WARNING: Failed to backup ${folder_name} folder"
+            fi
+        fi
+    else
+        log "${folder_name} folder not found, skipping"
+    fi
+}
+
+# Backup and compress each folder separately
+backup_and_compress_folder "${IMMICH_LIBRARY}/library" "library"
+backup_and_compress_folder "${IMMICH_LIBRARY}/upload" "upload"
+backup_and_compress_folder "${IMMICH_LIBRARY}/profile" "profile"
+
+# Sync to Yandex Disk
+log "Syncing backup to Yandex Disk (${RCLONE_REMOTE}:${RCLONE_PATH})..."
+if rclone sync "${BACKUP_BASE_DIR}" "${RCLONE_REMOTE}:${RCLONE_PATH}" --config "${HOME}/.config/rclone/rclone.conf" --progress --log-file=/media/pi/home/log/immich-backup-rclone.log 2>&1; then
+    log "Backup synced to Yandex Disk successfully"
+else
+    log "WARNING: Failed to sync backup to Yandex Disk"
+fi
+
+# Clean up old local backups
+log "Cleaning up backups older than ${RETENTION_DAYS} days..."
+# Remove old compressed archives (both .tar.gz and .sql.gz)
+find "${BACKUP_BASE_DIR}" -type f \( -name "*.tar.gz" -o -name "*.sql.gz" \) -mtime +${RETENTION_DAYS} -delete 2>/dev/null || true
+# Remove old uncompressed backup directories
+find "${BACKUP_BASE_DIR}" -type d -name "20*" -mtime +${RETENTION_DAYS} -exec rm -rf {} + 2>/dev/null || true
+log "Cleanup completed"
+
+log "Immich backup completed successfully"
+

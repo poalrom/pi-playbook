@@ -61,7 +61,33 @@ cd pi-playbook
    ansible-vault edit vault.yml
    ```
 
-4. **Review settings** in `group_vars/all.yml`:
+4. **Get Yandex Disk token** (for Immich backups):
+   ```bash
+   # Install rclone locally (on your control machine)
+   # macOS:
+   brew install rclone
+   # Linux:
+   sudo apt install rclone  # or use your package manager
+   
+   # Configure Yandex Disk remote
+   rclone config
+   # Follow prompts:
+   # - Choose "n" for new remote
+   # - Name: yandex-disk
+   # - Storage: yandex
+   # - Use auto config: yes (will open browser for authentication)
+   # - Complete authentication in browser
+   
+   # Extract the token from rclone config file
+   # macOS/Linux:
+   cat ~/.config/rclone/rclone.conf | grep -A 2 "\[yandex-disk\]" | grep "token ="
+   # Copy the entire token value (may be a JSON object or simple string)
+   
+   # Add the token to vault.yml:
+   # yandex_disk_token: "your-token-here"
+   ```
+
+5. **Review settings** in `group_vars/all.yml`:
    - Network subnet
    - Service passwords
    - Domain names
@@ -188,12 +214,19 @@ sudo smbpasswd -a home-pi
 # External storage location: /media/pi/home/immich/library
 
 # Configure public access via Nginx Proxy Manager
-# Domain: photo.yourdomain.com → immich-server:3001
+# Domain: photo.yourdomain.com → immich-server:2283
 
 # Install mobile app from:
 # iOS: App Store - "Immich"
 # Android: Play Store - "Immich"
 ```
+
+**Backup configuration**:
+- Automated backups to Yandex Disk are configured via cron (daily at 4 AM)
+- Backups include database and critical folders (library, upload, profile)
+- Local backups stored in `/media/pi/home/backups/immich` with 3-day retention
+- To manually run backup: `/usr/local/bin/backup-immich.sh`
+- View backup logs: `cat /media/pi/home/log/immich-backup-rclone.log`
 
 ### 6. Obsidian LiveSync Setup
 
@@ -228,6 +261,9 @@ ansible-playbook -i inventory.yml site.yml --tags samba
 
 # Photo & video management
 ansible-playbook -i inventory.yml site.yml --tags immich
+
+# Immich backups (requires yandex_disk_token in vault.yml)
+ansible-playbook -i inventory.yml site.yml --tags immich-backup
 
 # Obsidian sync server
 ansible-playbook -i inventory.yml site.yml --tags obsidian

@@ -24,3 +24,6 @@ obsidian_livesync_passphrase: "your-obsidian-livesync-passphrase"
 # Nginx Proxy Manager Configuration
 nginx_proxy_manager_admin_email: "admin@example.com"
 nginx_proxy_manager_admin_password: "changeme"
+
+# Yandex Disk Configuration
+yandex_disk_token: 'YOUR_YANDEX_DISK_OAUTH_TOKEN_HERE'

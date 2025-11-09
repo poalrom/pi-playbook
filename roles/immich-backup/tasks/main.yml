@@ -1,0 +1,88 @@
+---
+# =============================================================================
+# Immich Backup Role - Automated Backups to Yandex Disk
+# =============================================================================
+
+- name: Install rclone
+  ansible.builtin.shell: |
+    curl https://rclone.org/install.sh | sudo bash
+  args:
+    creates: /usr/bin/rclone
+  tags: ["skip_ansible_lint"]
+  changed_when: false
+
+- name: Verify rclone installation
+  ansible.builtin.command: rclone version
+  register: rclone_version
+  changed_when: false
+
+- name: Display rclone version
+  ansible.builtin.debug:
+    var: rclone_version.stdout_lines
+
+- name: Create rclone config directory
+  ansible.builtin.file:
+    path: "/home/{{ users.admin_user }}/.config/rclone"
+    state: directory
+    mode: "0700"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+
+- name: Create rclone config file
+  ansible.builtin.template:
+    src: rclone.conf.j2
+    dest: "/home/{{ users.admin_user }}/.config/rclone/rclone.conf"
+    mode: "0644"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+
+- name: Test rclone configuration
+  ansible.builtin.command: "rclone lsd {{ backup.rclone_remote }}: --config /home/{{ users.admin_user }}/.config/rclone/rclone.conf"
+  register: rclone_test
+  changed_when: false
+  become_user: "{{ users.admin_user }}"
+  environment:
+    RCLONE_CONFIG: "/home/{{ users.admin_user }}/.config/rclone/rclone.conf"
+
+- name: Display rclone test result
+  ansible.builtin.debug:
+    msg: "rclone configuration test: {{ 'SUCCESS' if rclone_test.rc == 0 else 'FAILED - Please check your Yandex Disk token' }}"
+
+- name: Create local backup directory
+  ansible.builtin.file:
+    path: "{{ backup.local_directory }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create Immich backup script
+  ansible.builtin.template:
+    src: backup-immich.sh.j2
+    dest: /usr/local/bin/backup-immich.sh
+    mode: "0755"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+
+- name: Create cron job for Immich backup
+  ansible.builtin.cron:
+    name: "Immich backup daily at 4 AM"
+    minute: "0"
+    hour: "4"
+    job: "HOME=/home/{{ users.admin_user }} PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /usr/local/bin/backup-immich.sh"
+    user: "{{ users.admin_user }}"
+    state: present
+
+- name: Display Immich backup configuration
+  ansible.builtin.debug:
+    msg: |
+      Immich backup has been configured!
+
+      Backup Schedule: Daily at 4:00 AM (via cron)
+      Local Backup Directory: {{ backup.local_directory }}
+      Remote: {{ backup.rclone_remote }}:{{ backup.rclone_path }}
+      Retention: {{ backup.retention_days }} days
+
+      To manually run a backup: /usr/local/bin/backup-immich.sh
+      To view cron job: crontab -l -u "{{ users.admin_user }}"
+      To view backup logs: Check /var/log/immich-backup-rclone.log or system logs

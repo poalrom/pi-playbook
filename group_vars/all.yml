@@ -92,3 +92,10 @@ security:
 system:
   timezone: "UTC" # Change as needed
   locale: "en_US.UTF-8"
+
+# Backup Configuration
+backup:
+  local_directory: "/media/pi/home/backups/immich"
+  retention_days: 3
+  rclone_remote: "yandex-disk"
+  rclone_path: "immich-backups"
