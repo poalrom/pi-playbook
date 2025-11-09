@@ -3,6 +3,10 @@
 .vault_pass
 vault.yml
 
+# VPN Configuration files (keep .example files)
+roles/torrent-vpn/files/*.ovpn
+!roles/torrent-vpn/files/*.ovpn.example
+
 # Backup files
 *.backup
 *~

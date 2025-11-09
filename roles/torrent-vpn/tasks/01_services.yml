@@ -1,0 +1,99 @@
+---
+# =============================================================================
+# Phase 1: Service Configuration
+# =============================================================================
+
+- name: Create torrents directory structure
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: '0755'
+  loop:
+    - "{{ torrent_vpn.download_path }}"
+    - "{{ torrent_vpn.incomplete_path }}"
+
+- name: Install required packages
+  ansible.builtin.apt:
+    name:
+      - openvpn
+    state: present
+    update_cache: true
+
+- name: Create qBittorrent Docker stack directory
+  ansible.builtin.file:
+    path: "{{ docker.stacks_directory }}/qbittorrent"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: '0755'
+
+- name: Create qBittorrent config directory
+  ansible.builtin.file:
+    path: "{{ docker.stacks_directory }}/qbittorrent/config"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: '0755'
+
+- name: Copy OpenVPN config file
+  ansible.builtin.copy:
+    src: "{{ torrent_vpn.vpn_config_name }}.ovpn"
+    dest: "/etc/openvpn/client/{{ torrent_vpn.vpn_config_name }}.conf"
+    mode: '0644'
+
+- name: Get admin user UID
+  ansible.builtin.command: id -u {{ users.admin_user }}
+  register: admin_user_uid_result
+  changed_when: false
+
+- name: Get admin user GID
+  ansible.builtin.command: id -g {{ users.admin_user }}
+  register: admin_user_gid_result
+  changed_when: false
+
+- name: Set admin user UID/GID facts
+  ansible.builtin.set_fact:
+    admin_user_uid: "{{ admin_user_uid_result.stdout }}"
+    admin_user_gid: "{{ admin_user_gid_result.stdout }}"
+
+- name: Create qBittorrent docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ docker.stacks_directory }}/qbittorrent/compose.yml"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: '0644'
+  notify: Restart qbittorrent
+
+- name: Configure qBittorrent
+  ansible.builtin.ini_file:
+    path: "{{ docker.stacks_directory }}/qbittorrent/config/qBittorrent/qBittorrent.conf"
+    section: "{{ item.section }}"
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: '0644'
+  with_items:
+    - { section: "BitTorrent", option: "Session\\AddTorrentStopped", value: "true" }
+    - { section: "BitTorrent", option: "Session\\AnonymousModeEnabled", value: "true" }
+    - { section: "BitTorrent", option: "Session\\GlobalMaxRatio", value: "1e-06" }
+    - { section: "BitTorrent", option: "Session\\GlobalUPSpeedLimit", value: "1" }
+    - { section: "BitTorrent", option: "Session\\DefaultSavePath", value: "/downloads" }
+    - { section: "BitTorrent", option: "Session\\TempPath", value: "/incomplete" }
+    - { section: "BitTorrent", option: "Session\\TempPathEnabled", value: "true" }
+    - { section: "Preferences", option: "WebUI\\Port", value: "{{ torrent_vpn.qbittorrent_webui_port }}" }
+    - { section: "Preferences", option: "WebUI\\Password_PBKDF2", value: "{{ torrent_vpn.default_password }}" }
+
+- name: Enable OpenVPN service
+  ansible.builtin.systemd:
+    name: "openvpn-client@{{ torrent_vpn.vpn_config_name }}"
+    enabled: true
+    daemon_reload: true
+
+- name: Start qBittorrent Docker stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker.stacks_directory }}/qbittorrent"
+    state: present

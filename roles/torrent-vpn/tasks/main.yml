@@ -1,0 +1,10 @@
+---
+# =============================================================================
+# Torrent VPN Setup - Main Orchestration
+# =============================================================================
+
+- name: Include service configuration tasks
+  ansible.builtin.include_tasks: 01_services.yml
+
+- name: Include kill switch configuration tasks
+  ansible.builtin.include_tasks: 02_killswitch.yml

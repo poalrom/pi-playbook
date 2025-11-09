@@ -1,0 +1,15 @@
+---
+# =============================================================================
+# Handlers for Torrent VPN Role
+# =============================================================================
+
+- name: Restart qbittorrent
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker.stacks_directory }}/qbittorrent"
+    state: present
+    recreate: always
+
+- name: Restart openvpn
+  ansible.builtin.systemd:
+    name: "openvpn-client@{{ torrent_vpn.vpn_config_name }}"
+    state: restarted

@@ -1,0 +1,18 @@
+name: qbittorrent
+
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - PUID={{ admin_user_uid | default(1000) }}
+      - PGID={{ admin_user_gid | default(1000) }}
+      - TZ={{ system.timezone | default('UTC') }}
+      - WEBUI_PORT={{ torrent_vpn.qbittorrent_webui_port }}
+    volumes:
+      - {{ docker.stacks_directory }}/qbittorrent/config:/config
+      - {{ torrent_vpn.download_path }}:/downloads
+      - {{ torrent_vpn.incomplete_path }}:/incomplete
+

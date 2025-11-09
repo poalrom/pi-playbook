@@ -99,3 +99,13 @@ backup:
   retention_days: 3
   rclone_remote: "yandex-disk"
   rclone_path: "immich-backups"
+
+# Torrent VPN Configuration
+torrent_vpn:
+  download_path: "{{ storage.directories.samba }}/downloads"
+  incomplete_path: "{{ storage.mount_point }}/torrents/incomplete"
+  vpn_config_name: "myvpn"  # Name for OpenVPN service (without .conf extension)
+  vpn_interface: "tun0"  # VPN interface name (auto-detect or manual)
+  qbittorrent_webui_port: 8234
+  # Hash of the default password "adminadmin"
+  default_password: "@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"

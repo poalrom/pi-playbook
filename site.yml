@@ -30,6 +30,9 @@
       tags: ["security"]
       # Note: User management is handled in the separate user management phase above
 
+    - role: torrent-vpn
+      tags: ["torrent"]
+
     - role: disk-mounting
       tags: ["disk"]
 

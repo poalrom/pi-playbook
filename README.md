@@ -61,7 +61,22 @@ cd pi-playbook
    ansible-vault edit vault.yml
    ```
 
-4. **Get Yandex Disk token** (for Immich backups):
+4. **Configure VPN for torrent client** (if using torrent-vpn role):
+   ```bash
+   # Copy the example VPN config file
+   cp roles/torrent-vpn/files/myvpn.ovpn.example roles/torrent-vpn/files/myvpn.ovpn
+   
+   # Edit the VPN config file with your provider's details
+   # You'll need:
+   # - VPN server address and port
+   # - CA certificate
+   # - Client certificate and key (if required)
+   # - TLS authentication key (if required)
+   
+   # The file will be automatically deployed to /etc/openvpn/myvpn.conf
+   ```
+
+5. **Get Yandex Disk token** (for Immich backups):
    ```bash
    # Install rclone locally (on your control machine)
    # macOS:
@@ -87,10 +102,11 @@ cd pi-playbook
    # yandex_disk_token: "your-token-here"
    ```
 
-5. **Review settings** in `group_vars/all.yml`:
+6. **Review settings** in `group_vars/all.yml`:
    - Network subnet
    - Service passwords
    - Domain names
+   - Torrent VPN configuration (download paths, WebUI port)
 
 ### Deployment
 
@@ -131,6 +147,7 @@ ansible-playbook -i inventory.yml site.yml
 - **Samba**: Secure file sharing (local network only)
 - **Immich**: Self-hosted photo and video management (public)
 - **Obsidian LiveSync**: CouchDB-based sync server for Obsidian vaults (public)
+- **qBittorrent with VPN**: Torrent client with OpenVPN kill switch protection (local network only)
 
 ## 🔧 Service Access
 
@@ -144,6 +161,7 @@ After deployment, services are available at:
 | **Samba** | `//PI_IP/shared` | File sharing |
 | **Immich** | `http://PI_IP:2283` | Photo & video management |
 | **Obsidian LiveSync** | `http://PI_IP:5984` | Obsidian sync server |
+| **qBittorrent** | `http://PI_IP:8234` | Torrent client WebUI (local network only) |
 | **SSH** | `ssh -p 2312 home-pi@PI_IP` | Secure shell access |
 
 ## 🔄 Post-Deployment Steps
@@ -242,6 +260,53 @@ sudo smbpasswd -a home-pi
 # Domain: vault.yourdomain.com → obsidian_livesync_couchdb:5984
 ```
 
+### 7. Torrent VPN Setup
+
+**Initial configuration**:
+```bash
+# qBittorrent WebUI is available at http://PI_IP:8234
+# Default credentials: admin / adminadmin
+# ⚠️ IMPORTANT: Change password on first login!
+
+# Verify VPN connection:
+sudo systemctl status openvpn-client@myvpn
+
+# Check VPN interface:
+ip addr show tun0
+
+# Verify kill switch is working:
+# - qBittorrent should only bind to tun0 interface
+# - Firewall rules prevent traffic outside VPN
+# - If VPN disconnects, torrent traffic is blocked
+
+# Download location: /media/pi/home/samba/shared/downloads
+# Incomplete downloads: /media/pi/home/torrents/incomplete
+```
+
+**VPN Configuration**:
+- OpenVPN config is located at `/etc/openvpn/client/myvpn.conf`
+- VPN service runs as `openvpn-client@myvpn`
+- The playbook automatically configures firewall rules to:
+  - Allow VPN server connection (outgoing)
+  - Allow DNS resolution (outgoing)
+  - Block all other outgoing traffic when VPN is active (kill switch)
+  - Allow qBittorrent WebUI access from local network only
+
+**Troubleshooting**:
+```bash
+# Check VPN connection status
+sudo journalctl -u openvpn-client@myvpn -f
+
+# Verify qBittorrent is bound to VPN interface
+docker exec qbittorrent ip addr show
+
+# Test VPN connectivity
+ping -I tun0 8.8.8.8
+
+# Check firewall rules
+sudo ufw status numbered | grep -E "(OpenVPN|DNS|8234)"
+```
+
 ## 🛠️ Selective Deployment
 
 Deploy specific components using tags:
@@ -268,6 +333,9 @@ ansible-playbook -i inventory.yml site.yml --tags immich-backup
 # Obsidian sync server
 ansible-playbook -i inventory.yml site.yml --tags obsidian
 
+# Torrent client with VPN (requires VPN config file)
+ansible-playbook -i inventory.yml site.yml --tags torrent
+
 # Dynamic DNS
 ansible-playbook -i inventory.yml site.yml --tags ddns
 ```
@@ -281,6 +349,9 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 | HTTP | 80 | Internet | Reverse proxy entry |
 | HTTPS | 443 | Internet | Secure web traffic |
 | Samba | 137,138,139,445 | Local only | File sharing |
+| qBittorrent WebUI | 8234 | Local only | Torrent client management |
+| OpenVPN | Dynamic | VPN server | VPN connection (outgoing) |
+| DNS | 53/udp | Any | DNS resolution (outgoing) |
 
 ### Security Hardening
 - ✅ Default user removal
@@ -290,6 +361,7 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 - ✅ UFW firewall with deny-by-default
 - ✅ Regular security updates
 - ✅ Service isolation via Docker networks
+- ✅ VPN kill switch for torrent traffic (prevents leaks if VPN disconnects)
 
 ## 🔧 Maintenance & Troubleshooting
 
