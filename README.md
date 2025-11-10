@@ -137,6 +137,7 @@ ansible-playbook -i inventory.yml site.yml
 - **Nginx Proxy Manager**: Reverse proxy with SSL automation
 - **Dynamic DNS**: Automatic IP updates via myaddr.tools
 - **External storage**: Automatic mounting and configuration
+- **Rclone**: Cloud storage synchronization tool (used for backups)
 
 ### Monitoring & Alerting
 - **Uptime Kuma**: Service monitoring dashboard with Telegram alerts
@@ -327,7 +328,10 @@ ansible-playbook -i inventory.yml site.yml --tags samba
 # Photo & video management
 ansible-playbook -i inventory.yml site.yml --tags immich
 
-# Immich backups (requires yandex_disk_token in vault.yml)
+# Rclone installation and configuration (required for immich-backup)
+ansible-playbook -i inventory.yml site.yml --tags rclone
+
+# Immich backups (requires yandex_disk_token in vault.yml and rclone role)
 ansible-playbook -i inventory.yml site.yml --tags immich-backup
 
 # Obsidian sync server

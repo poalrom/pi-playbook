@@ -48,6 +48,9 @@
     - role: glances-monitoring
       tags: ["glances"]
 
+    - role: rclone
+      tags: ["rclone"]
+
     - role: immich
       when: immich_db_password != ""
       tags: ["immich"]

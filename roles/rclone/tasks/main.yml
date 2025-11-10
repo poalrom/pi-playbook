@@ -1,0 +1,50 @@
+---
+# =============================================================================
+# Rclone Role - Installation and Configuration
+# =============================================================================
+
+- name: Install rclone
+  ansible.builtin.shell: |
+    curl https://rclone.org/install.sh | sudo bash
+  args:
+    creates: /usr/bin/rclone
+  tags: ["skip_ansible_lint"]
+  changed_when: false
+
+- name: Verify rclone installation
+  ansible.builtin.command: rclone version
+  register: rclone_version
+  changed_when: false
+
+- name: Display rclone version
+  ansible.builtin.debug:
+    var: rclone_version.stdout_lines
+
+- name: Create rclone config directory
+  ansible.builtin.file:
+    path: "/home/{{ users.admin_user }}/.config/rclone"
+    state: directory
+    mode: "0700"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+
+- name: Create rclone config file
+  ansible.builtin.template:
+    src: rclone.conf.j2
+    dest: "/home/{{ users.admin_user }}/.config/rclone/rclone.conf"
+    mode: "0644"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+
+- name: Test rclone configuration
+  ansible.builtin.command: "rclone lsd {{ backup.rclone_remote }}: --config /home/{{ users.admin_user }}/.config/rclone/rclone.conf"
+  register: rclone_test
+  changed_when: false
+  become_user: "{{ users.admin_user }}"
+  become: true
+  environment:
+    RCLONE_CONFIG: "/home/{{ users.admin_user }}/.config/rclone/rclone.conf"
+
+- name: Display rclone test result
+  ansible.builtin.debug:
+    msg: "rclone configuration test: {{ 'SUCCESS' if rclone_test.rc == 0 else 'FAILED - Please check your Yandex Disk token' }}"

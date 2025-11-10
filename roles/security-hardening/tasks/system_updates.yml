@@ -30,6 +30,5 @@
       - ca-certificates
       - gnupg
       - lsb-release
-      - rsync
       - jq
     state: present
