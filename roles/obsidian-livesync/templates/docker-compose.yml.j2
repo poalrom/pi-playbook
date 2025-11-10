@@ -7,6 +7,6 @@ services:
       - COUCHDB_USER={{ obsidian_livesync_db_user }}
       - COUCHDB_PASSWORD={{ obsidian_livesync_db_password }}
     volumes:
-      - {{ services.obsidian_livesync.config_path }}/data:/opt/couchdb/data
-      - {{ services.obsidian_livesync.config_path }}/etc:/opt/couchdb/etc/local.d
+      - {{ obsidian_livesync.config_path }}/data:/opt/couchdb/data
+      - {{ obsidian_livesync.config_path }}/etc:/opt/couchdb/etc/local.d
     network_mode: host

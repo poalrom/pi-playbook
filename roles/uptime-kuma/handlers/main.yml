@@ -1,6 +1,6 @@
 ---
 - name: Restart uptime-kuma
   community.docker.docker_compose_v2:
-    project_src: "{{ docker.stacks_directory }}/uptime-kuma"
+    project_src: "{{ uptime_kuma.config_path }}"
     state: present
     recreate: always

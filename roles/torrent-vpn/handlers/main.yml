@@ -5,7 +5,7 @@
 
 - name: Restart qbittorrent
   community.docker.docker_compose_v2:
-    project_src: "{{ docker.stacks_directory }}/qbittorrent"
+    project_src: "{{ torrent_vpn.config_path }}"
     state: present
     recreate: always
 

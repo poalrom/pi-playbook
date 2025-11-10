@@ -3,6 +3,10 @@
 # Raspberry Pi Home Server Configuration Variables
 # =============================================================================
 
+# =============================================================================
+# Common Infrastructure Parameters
+# =============================================================================
+
 # Network Configuration
 network:
   local_subnet: "192.168.178.0/24"
@@ -26,60 +30,26 @@ firewall:
   samba_ports:
     udp: [137, 138]
     tcp: [139, 445]
+
 # Fail2Ban Configuration
 fail2ban:
   ssh_maxretry: 3
   ssh_bantime: "1h"
   ssh_findtime: "10m"
 
-# DDNS Configuration
-ddns:
-  domain: "{{ ddns_domain }}"
-  service_url: "https://myaddr.tools/update"
-  update_interval: "hourly"
-
 # External Storage
 storage:
   device: "/dev/sda2"
   mount_point: "/media/pi/home"
   filesystem: "exfat-fuse"
-  directories:
-    samba: "/media/pi/home/samba/shared"
-    immich_library: "/media/pi/home/immich/library"
-    immich_database: "/opt/stacks/immich/database"
+
+# Placed separately to avoid recursion templating
+log_directory: "{{ storage.mount_point }}/log"
+shared_directory: "{{ storage.mount_point }}/samba/shared"
 
 # Docker Configuration
 docker:
   stacks_directory: "/opt/stacks"
-
-# Service Configuration
-services:
-  nginx_proxy_manager:
-    port: 81
-    http_port: 80
-    https_port: 443
-    config_path: "{{ docker.stacks_directory }}/nginx-proxy-manager"
-
-  uptime_kuma:
-    port: 3001
-
-  samba:
-    workgroup: "WORKGROUP"
-    server_string: "Pi Home Server"
-    netbios_name: "PISERVER"
-
-  immich:
-    port: 2283
-    domain: "photo.{{ ddns_domain }}"
-    public_access: true
-
-  glances:
-    port: 61208
-
-  obsidian_livesync:
-    port: 5984
-    domain: "vault.{{ ddns_domain }}"
-    config_path: "{{ docker.stacks_directory }}/obsidian-livesync"
 
 # Security Settings
 security:
@@ -93,16 +63,71 @@ system:
   timezone: "UTC" # Change as needed
   locale: "en_US.UTF-8"
 
-# Backup Configuration
-backup:
-  local_directory: "/media/pi/home/backups/immich"
+# =============================================================================
+# Role-Specific Configuration Parameters
+# =============================================================================
+
+# DDNS Configuration
+ddns:
+  domain: "{{ ddns_domain }}"
+  service_url: "https://myaddr.tools/update"
+  update_interval: "hourly"
+
+# Immich Photo Management
+immich:
+  port: 2283
+  domain: "photo.{{ ddns_domain }}"
+  public_access: true
+  config_path: "{{ docker.stacks_directory }}/immich"
+  library_directory: "{{ storage.mount_point }}/immich/library"
+  # Placed to the main storage to avoid permission conflicts
+  database_directory: "{{ docker.stacks_directory }}/immich/database"
+
+# Immich Backup Configuration
+immich_backup:
+  local_directory: "{{ storage.mount_point }}/backups/immich"
   retention_days: 3
-  rclone_remote: "yandex-disk"
   rclone_path: "immich-backups"
+  log_file: "{{ log_directory }}/immich-backup-rclone.log"
+
+rclone:
+  remote: "yandex-disk"
+
+# Nginx Proxy Manager
+nginx_proxy_manager:
+  port: 81
+  http_port: 80
+  https_port: 443
+  config_path: "{{ docker.stacks_directory }}/nginx-proxy-manager"
+
+# Uptime Kuma Monitoring
+uptime_kuma:
+  port: 3001
+  config_path: "{{ docker.stacks_directory }}/uptime-kuma"
+  data_path: "{{ docker.stacks_directory }}/uptime-kuma/data"
+
+# Samba File Sharing
+samba:
+  workgroup: "WORKGROUP"
+  server_string: "Pi Home Server"
+  netbios_name: "PISERVER"
+
+# Glances System Monitoring
+glances:
+  port: 61208
+  config_path: "{{ docker.stacks_directory }}/glances"
+
+# Obsidian LiveSync
+obsidian_livesync:
+  port: 5984
+  domain: "vault.{{ ddns_domain }}"
+  config_path: "{{ docker.stacks_directory }}/obsidian-livesync"
 
 # Torrent VPN Configuration
 torrent_vpn:
-  download_path: "{{ storage.directories.samba }}/downloads"
+  config_path: "{{ docker.stacks_directory }}/qbittorrent"
+  qbittorrent_config_path: "{{ docker.stacks_directory }}/qbittorrent/config"
+  download_path: "{{ shared_directory }}/downloads"
   incomplete_path: "{{ storage.mount_point }}/torrents/incomplete"
   vpn_config_name: "myvpn"  # Name for OpenVPN service (without .conf extension)
   vpn_interface: "tun0"  # VPN interface name (auto-detect or manual)

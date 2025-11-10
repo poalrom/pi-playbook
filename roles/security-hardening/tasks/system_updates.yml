@@ -31,4 +31,7 @@
       - gnupg
       - lsb-release
       - jq
+      - telnet
+      - speedtest-cli
+      - iperf3
     state: present

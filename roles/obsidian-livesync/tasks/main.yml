@@ -1,25 +1,25 @@
 - name: Create obsidian-livesync directory
   ansible.builtin.file:
-    path: "{{ services.obsidian_livesync.config_path }}"
+    path: "{{ obsidian_livesync.config_path }}"
     state: directory
     mode: "0755"
 
 - name: Template docker-compose for obsidian-livesync
   ansible.builtin.template:
     src: docker-compose.yml.j2
-    dest: "{{ services.obsidian_livesync.config_path }}/docker-compose.yml"
+    dest: "{{ obsidian_livesync.config_path }}/docker-compose.yml"
     mode: "0644"
   notify: Restart obsidian-livesync
 
 - name: Start obsidian-livesync
   community.docker.docker_compose_v2:
-    project_src: "{{ services.obsidian_livesync.config_path }}"
+    project_src: "{{ obsidian_livesync.config_path }}"
     state: present
 
 - name: Wait for CouchDB to be ready
   ansible.builtin.wait_for:
     host: "127.0.0.1"
-    port: "{{ services.obsidian_livesync.port }}"
+    port: "{{ obsidian_livesync.port }}"
     delay: 10
     timeout: 60
 
@@ -28,7 +28,7 @@
   ansible.builtin.shell: |
     curl -s https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/utils/couchdb/couchdb-init.sh | bash
   environment:
-    hostname: "http://{{ obsidian_livesync_db_user }}:{{ obsidian_livesync_db_password }}@127.0.0.1:{{ services.obsidian_livesync.port }}"
+    hostname: "http://{{ obsidian_livesync_db_user }}:{{ obsidian_livesync_db_password }}@127.0.0.1:{{ obsidian_livesync.port }}"
     username: "{{ obsidian_livesync_db_user }}"
     password: "{{ obsidian_livesync_db_password }}"
   register: couchdb_config_result
@@ -44,7 +44,7 @@
   ansible.builtin.shell: |
     {{ ansible_env.HOME }}/.deno/bin/deno run -A https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/utils/flyio/generate_setupuri.ts
   environment:
-    hostname: "https://{{ services.obsidian_livesync.domain }}"
+    hostname: "https://{{ obsidian_livesync.domain }}"
     database: "obsidian-livesync"
     passphrase: "{{ obsidian_livesync_passphrase }}"
     username: "{{ obsidian_livesync_db_user }}"

@@ -22,3 +22,4 @@
     opts: defaults,uid=1000,gid=1000,dmask=000,fmask=111,nofail
     dump: 0
     passno: 2
+  tags: ["skip_ansible_lint"]

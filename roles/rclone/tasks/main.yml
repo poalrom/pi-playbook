@@ -37,7 +37,7 @@
     group: "{{ users.admin_user }}"
 
 - name: Test rclone configuration
-  ansible.builtin.command: "rclone lsd {{ backup.rclone_remote }}: --config /home/{{ users.admin_user }}/.config/rclone/rclone.conf"
+  ansible.builtin.command: "rclone lsd {{ rclone.remote }}: --config /home/{{ users.admin_user }}/.config/rclone/rclone.conf"
   register: rclone_test
   changed_when: false
   become_user: "{{ users.admin_user }}"

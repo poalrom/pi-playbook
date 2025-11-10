@@ -29,28 +29,6 @@
   changed_when: false
   failed_when: sshd_test.rc != 0
 
-- name: Check if UFW is installed
-  ansible.builtin.command: which ufw
-  register: ufw_check
-  changed_when: false
-  failed_when: false
-
-- name: Install UFW if not present (for SSH port configuration)
-  ansible.builtin.apt:
-    name: ufw
-    state: present
-  when: ufw_check.rc != 0
-
-- name: Allow new SSH port in UFW before restarting SSH (local network only)
-  ufw:
-    rule: allow
-    port: "{{ ssh.port }}"
-    proto: tcp
-    src: "{{ network.local_subnet }}"
-  when: firewall_configured is not defined
-  # Note: This is a temporary rule. Full firewall configuration with ufw-docker
-  # will be applied later in the firewall.yml task file
-
 - name: Restart SSH service
   ansible.builtin.systemd:
     name: ssh

@@ -23,14 +23,20 @@
 
 - name: Create Samba share directory
   ansible.builtin.file:
-    path: "{{ storage.directories.samba }}"
+    path: "{{ shared_directory }}"
     state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
 
 - name: Configure Samba
   ansible.builtin.template:
     src: smb.conf.j2
     dest: /etc/samba/smb.conf
     backup: true
+    owner: "root"
+    group: "root"
+    mode: "0644"
   notify: Restart samba
 
 - name: Test Samba configuration
@@ -44,7 +50,7 @@
 
 - name: Create Samba user
   ansible.builtin.shell: |
-    (echo "{{ samba_password }}"; echo "{{ samba_password }}") | smbpasswd -a {{ users.admin_user }}
+    set -o pipefail && (echo "{{ samba_password }}"; echo "{{ samba_password }}") | smbpasswd -a {{ users.admin_user }}
   register: samba_user_result
   changed_when: "'Added user' in samba_user_result.stdout"
 
@@ -86,12 +92,12 @@
 
 - name: Display Samba access information
   ansible.builtin.debug:
-    msg: |
-      Samba file server is now running!
-      Share path: //{{ network.pi_ip }}/shared
-      Username: {{ users.admin_user }}
+    msg:
+      - "Samba file server is now running!"
+      - "Share path: //{{ network.pi_ip }}/shared"
+      - "Username: {{ users.admin_user }}"
 
-      Access from:
-      - Windows: \\{{ network.pi_ip }}\shared
-      - macOS: smb://{{ network.pi_ip }}/shared
-      - Linux: smbclient //{{ network.pi_ip }}/shared -U {{ users.admin_user }}
+      - "Access from:"
+      - "- Windows: \\{{ network.pi_ip }}\\shared"
+      - "- macOS: smb://{{ network.pi_ip }}/shared"
+      - "- Linux: smbclient //{{ network.pi_ip }}/shared -U {{ users.admin_user }}"

@@ -5,7 +5,15 @@
 
 - name: Create local backup directory
   ansible.builtin.file:
-    path: "{{ backup.local_directory }}"
+    path: "{{ immich_backup.local_directory }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create log directory
+  ansible.builtin.file:
+    path: "{{ log_directory }}"
     state: directory
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
@@ -30,14 +38,14 @@
 
 - name: Display Immich backup configuration
   ansible.builtin.debug:
-    msg: |
-      Immich backup has been configured!
+    msg:
+      - "Immich backup has been configured!"
 
-      Backup Schedule: Daily at 4:00 AM (via cron)
-      Local Backup Directory: {{ backup.local_directory }}
-      Remote: {{ backup.rclone_remote }}:{{ backup.rclone_path }}
-      Retention: {{ backup.retention_days }} days
+      - "Backup Schedule: Daily at 4:00 AM (via cron)"
+      - "Local Backup Directory: {{ immich_backup.local_directory }}"
+      - "Remote: {{ rclone.remote }}:{{ immich_backup.rclone_path }}"
+      - "Retention: {{ immich_backup.retention_days }} days"
 
-      To manually run a backup: /usr/local/bin/backup-immich.sh
-      To view cron job: crontab -l -u "{{ users.admin_user }}"
-      To view backup logs: Check /var/log/immich-backup-rclone.log or system logs
+      - "To manually run a backup: /usr/local/bin/backup-immich.sh"
+      - "To view cron job: crontab -l -u {{ users.admin_user }}"
+      - "To view backup logs: Check {{ immich_backup.log_file }} or system logs"

@@ -23,7 +23,7 @@
 
 - name: Create qBittorrent Docker stack directory
   ansible.builtin.file:
-    path: "{{ docker.stacks_directory }}/qbittorrent"
+    path: "{{ torrent_vpn.config_path }}"
     state: directory
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
@@ -31,7 +31,7 @@
 
 - name: Create qBittorrent config directory
   ansible.builtin.file:
-    path: "{{ docker.stacks_directory }}/qbittorrent/config"
+    path: "{{ torrent_vpn.qbittorrent_config_path }}"
     state: directory
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
@@ -61,7 +61,7 @@
 - name: Create qBittorrent docker-compose.yml
   ansible.builtin.template:
     src: docker-compose.yml.j2
-    dest: "{{ docker.stacks_directory }}/qbittorrent/compose.yml"
+    dest: "{{ torrent_vpn.config_path }}/compose.yml"
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
     mode: '0644'
@@ -69,7 +69,7 @@
 
 - name: Configure qBittorrent
   ansible.builtin.ini_file:
-    path: "{{ docker.stacks_directory }}/qbittorrent/config/qBittorrent/qBittorrent.conf"
+    path: "{{ torrent_vpn.qbittorrent_config_path }}/qBittorrent/qBittorrent.conf"
     section: "{{ item.section }}"
     option: "{{ item.option }}"
     value: "{{ item.value }}"
@@ -95,5 +95,5 @@
 
 - name: Start qBittorrent Docker stack
   community.docker.docker_compose_v2:
-    project_src: "{{ docker.stacks_directory }}/qbittorrent"
+    project_src: "{{ torrent_vpn.config_path }}"
     state: present

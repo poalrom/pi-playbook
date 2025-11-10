@@ -1,11 +1,11 @@
 services:
   uptime-kuma:
-    image: louislam/uptime-kuma:1
+    image: louislam/uptime-kuma:2
     container_name: uptime-kuma
     restart: unless-stopped
     volumes:
-      - ./uptime-kuma-data:/app/data
+      - {{ uptime_kuma.data_path }}:/app/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
     network_mode: host
     environment:
-      - UPTIME_KUMA_PORT=3001
+      - UPTIME_KUMA_PORT={{ uptime_kuma.port }}

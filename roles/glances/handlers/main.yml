@@ -1,6 +1,6 @@
 ---
 - name: Restart glances
   community.docker.docker_compose_v2:
-    project_src: "{{ docker.stacks_directory }}/glances"
+    project_src: "{{ glances.config_path }}"
     state: present
     recreate: always

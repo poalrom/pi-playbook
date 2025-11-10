@@ -5,7 +5,7 @@
 
 - name: Create Nginx Proxy Manager directory
   ansible.builtin.file:
-    path: "{{ services.nginx_proxy_manager.config_path }}"
+    path: "{{ nginx_proxy_manager.config_path }}"
     state: directory
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
@@ -13,7 +13,7 @@
 
 - name: Create Nginx Proxy Manager data directories
   ansible.builtin.file:
-    path: "{{ services.nginx_proxy_manager.config_path }}/{{ item }}"
+    path: "{{ nginx_proxy_manager.config_path }}/{{ item }}"
     state: directory
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
@@ -25,7 +25,7 @@
 - name: Create Nginx Proxy Manager docker-compose.yml
   ansible.builtin.template:
     src: docker-compose.yml.j2
-    dest: "{{ services.nginx_proxy_manager.config_path }}/compose.yml"
+    dest: "{{ nginx_proxy_manager.config_path }}/compose.yml"
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
     mode: "0644"
@@ -33,20 +33,20 @@
 
 - name: Start Nginx Proxy Manager
   community.docker.docker_compose_v2:
-    project_src: "{{ services.nginx_proxy_manager.config_path }}"
+    project_src: "{{ nginx_proxy_manager.config_path }}"
     state: present
 
 - name: Wait for Nginx Proxy Manager to be ready
   ansible.builtin.wait_for:
     host: "{{ network.pi_ip }}"
-    port: "{{ services.nginx_proxy_manager.port }}"
+    port: "{{ nginx_proxy_manager.port }}"
     delay: 10
     timeout: 60
 
 - name: Allow Nginx Proxy Manager on custom port from local network only
   ufw:
     rule: allow
-    port: "{{ services.nginx_proxy_manager.port }}"
+    port: "{{ nginx_proxy_manager.port }}"
     proto: tcp
     src: "{{ network.local_subnet }}"
     comment: "Nginx Proxy Manager on custom port - local network only"
@@ -54,38 +54,38 @@
 - name: Download Nginx Proxy Manager Bash API
   ansible.builtin.get_url:
     url: https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-Bash-API/main/npm-api.sh
-    dest: "{{ services.nginx_proxy_manager.config_path }}/npm-api.sh"
+    dest: "{{ nginx_proxy_manager.config_path }}/npm-api.sh"
     mode: "0755"
 
 - name: Create Nginx Proxy Manager npm-api.conf
   ansible.builtin.template:
     src: npm-api.conf.j2
-    dest: "{{ services.nginx_proxy_manager.config_path }}/npm-api.conf"
+    dest: "{{ nginx_proxy_manager.config_path }}/npm-api.conf"
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
     mode: "0644"
 
 - name: Add Immich to Nginx Proxy Manager # noqa: no-changed-when
   ansible.builtin.shell: |
-    {{ services.nginx_proxy_manager.config_path }}/npm-api.sh \
-    --host-create {{ services.immich.domain }} \
+    {{ nginx_proxy_manager.config_path }}/npm-api.sh \
+    --host-create {{ immich.domain }} \
     --forward-host 127.0.0.1 \
-    --forward-port {{ services.immich.port }} \
+    --forward-port {{ immich.port }} \
     -y                 # Auto confirm
 
 - name: Add Obsidian LiveSync to Nginx Proxy Manager # noqa: no-changed-when
   ansible.builtin.shell: |
-    {{ services.nginx_proxy_manager.config_path }}/npm-api.sh \
-    --host-create {{ services.obsidian_livesync.domain }} \
+    {{ nginx_proxy_manager.config_path }}/npm-api.sh \
+    --host-create {{ obsidian_livesync.domain }} \
     --forward-host 127.0.0.1 \
-    --forward-port {{ services.obsidian_livesync.port }} \
+    --forward-port {{ obsidian_livesync.port }} \
     -y                 # Auto confirm
 
 - name: Display Nginx Proxy Manager access information
   ansible.builtin.debug:
-    msg: |
-      Nginx Proxy Manager is now running!
-      Access it at: http://{{ network.pi_ip }}:{{ services.nginx_proxy_manager.port }}
-      Default credentials: {{ nginx_proxy_manager_admin_email }} / {{ nginx_proxy_manager_admin_password }}
-      IMPORTANT: Change these credentials immediately after first login!
-      IMPORTANT: Don't forget to enable SSL and security options for the domains!
+    msg:
+      - "Nginx Proxy Manager is now running!"
+      - "Access it at: http://{{ network.pi_ip }}:{{ nginx_proxy_manager.port }}"
+      - "Default credentials: {{ nginx_proxy_manager_admin_email }} / {{ nginx_proxy_manager_admin_password }}"
+      - "IMPORTANT: Change these credentials immediately after first login!"
+      - "IMPORTANT: Don't forget to enable SSL and security options for the domains!"

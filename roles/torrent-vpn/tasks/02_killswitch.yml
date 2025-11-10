@@ -5,7 +5,7 @@
 
 - name: Configure qBittorrent
   ansible.builtin.ini_file:
-    path: "{{ docker.stacks_directory }}/qbittorrent/config/qBittorrent/qBittorrent.conf"
+    path: "{{ torrent_vpn.qbittorrent_config_path }}/qBittorrent/qBittorrent.conf"
     section: "{{ item.section }}"
     option: "{{ item.option }}"
     value: "{{ item.value }}"

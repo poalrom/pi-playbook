@@ -12,7 +12,7 @@ services:
       - TZ={{ system.timezone | default('UTC') }}
       - WEBUI_PORT={{ torrent_vpn.qbittorrent_webui_port }}
     volumes:
-      - {{ docker.stacks_directory }}/qbittorrent/config:/config
+      - {{ torrent_vpn.qbittorrent_config_path }}:/config
       - {{ torrent_vpn.download_path }}:/downloads
       - {{ torrent_vpn.incomplete_path }}:/incomplete
 

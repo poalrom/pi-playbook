@@ -4,9 +4,9 @@
 
 [global]
     # Network and Security Settings
-    workgroup = {{ services.samba.workgroup }}
-    server string = {{ services.samba.server_string }}
-    netbios name = {{ services.samba.netbios_name }}
+    workgroup = {{ samba.workgroup }}
+    server string = {{ samba.server_string }}
+    netbios name = {{ samba.netbios_name }}
     
     # Security Configuration
     security = user
@@ -37,7 +37,7 @@
 
 [shared]
     comment = Shared Files
-    path = {{ storage.directories.samba }}
+    path = {{ shared_directory }}
     browseable = yes
     writable = yes
     guest ok = no
