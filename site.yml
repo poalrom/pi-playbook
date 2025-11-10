@@ -63,6 +63,9 @@
       when: obsidian_livesync_db_password != ""
       tags: ["obsidian"]
 
+    - role: vaultwarden
+      tags: ["vaultwarden"]
+
     - role: nginx-proxy-manager
       tags: ["nginx"]
 

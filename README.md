@@ -148,6 +148,7 @@ ansible-playbook -i inventory.yml site.yml
 - **Samba**: Secure file sharing (local network only)
 - **Immich**: Self-hosted photo and video management (public)
 - **Obsidian LiveSync**: CouchDB-based sync server for Obsidian vaults (public)
+- **Vaultwarden**: Self-hosted Bitwarden-compatible password manager (public)
 - **qBittorrent with VPN**: Torrent client with OpenVPN kill switch protection (local network only)
 
 ## 🔧 Service Access
@@ -162,6 +163,7 @@ After deployment, services are available at:
 | **Samba** | `//PI_IP/shared` | File sharing |
 | **Immich** | `http://PI_IP:2283` | Photo & video management |
 | **Obsidian LiveSync** | `http://PI_IP:5984` | Obsidian sync server |
+| **Vaultwarden** | `http://PI_IP:11011` | Password manager |
 | **qBittorrent** | `http://PI_IP:8234` | Torrent client WebUI (local network only) |
 | **SSH** | `ssh -p 2312 home-pi@PI_IP` | Secure shell access |
 
@@ -261,7 +263,37 @@ sudo smbpasswd -a home-pi
 # Domain: vault.yourdomain.com → obsidian_livesync_couchdb:5984
 ```
 
-### 7. Torrent VPN Setup
+### 7. Vaultwarden Setup
+
+**Initial configuration**:
+```bash
+# Vaultwarden runs on http://PI_IP:11011
+# Access the web interface to create your admin account
+
+# Data is stored in: /opt/stacks/vaultwarden/data
+
+# Configure public access via Nginx Proxy Manager
+# Domain: vwdn.yourdomain.com → 127.0.0.1:11011
+# SSL: Request new certificate ✓
+# Force SSL: ✓
+# WebSocket Support: ✓ (required for real-time sync)
+
+# Install Bitwarden clients and connect to your self-hosted instance:
+# - Desktop: https://bitwarden.com/download/
+# - Mobile: iOS App Store / Android Play Store - "Bitwarden"
+# - Browser extensions: Available for Chrome, Firefox, Safari, Edge
+
+# In the client, set the server URL to: https://vwdn.yourdomain.com
+```
+
+**Security Notes**:
+- Signups are disabled by default (SIGNUPS_ALLOWED=false)
+- Invitations are disabled by default (INVITATIONS_ALLOWED=false)
+- Only create accounts manually through the admin interface
+- Enable 2FA for all accounts
+- Regular backups are recommended (data stored in `/opt/stacks/vaultwarden/data`)
+
+### 8. Torrent VPN Setup
 
 **Initial configuration**:
 ```bash
@@ -337,6 +369,9 @@ ansible-playbook -i inventory.yml site.yml --tags immich-backup
 # Obsidian sync server
 ansible-playbook -i inventory.yml site.yml --tags obsidian
 
+# Password manager
+ansible-playbook -i inventory.yml site.yml --tags vaultwarden
+
 # Torrent client with VPN (requires VPN config file)
 ansible-playbook -i inventory.yml site.yml --tags torrent
 
@@ -353,6 +388,7 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 | HTTP | 80 | Internet | Reverse proxy entry |
 | HTTPS | 443 | Internet | Secure web traffic |
 | Samba | 137,138,139,445 | Local only | File sharing |
+| Vaultwarden | 11011 | Local only | Password manager |
 | qBittorrent WebUI | 8234 | Local only | Torrent client management |
 | OpenVPN | Dynamic | VPN server | VPN connection (outgoing) |
 | DNS | 53/udp | Any | DNS resolution (outgoing) |

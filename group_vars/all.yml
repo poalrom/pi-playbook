@@ -123,6 +123,13 @@ obsidian_livesync:
   domain: "vault.{{ ddns_domain }}"
   config_path: "{{ docker.stacks_directory }}/obsidian-livesync"
 
+# Vaultwarden Password Manager
+vaultwarden:
+  port: 11011
+  domain: "vwdn.{{ ddns_domain }}"
+  config_path: "{{ docker.stacks_directory }}/vaultwarden"
+  data_path: "{{ docker.stacks_directory }}/vaultwarden/data"
+
 # Torrent VPN Configuration
 torrent_vpn:
   config_path: "{{ docker.stacks_directory }}/qbittorrent"
