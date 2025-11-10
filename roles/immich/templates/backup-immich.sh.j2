@@ -9,11 +9,11 @@
 set -euo pipefail
 
 # Configuration
-BACKUP_BASE_DIR="{{ immich_backup.local_directory }}"
+BACKUP_BASE_DIR="{{ immich.backup.local_directory }}"
 TIMESTAMP=$(date +"%Y-%m-%d-%H%M%S")
 RCLONE_REMOTE="{{ rclone.remote }}"
-RCLONE_PATH="{{ immich_backup.rclone_path }}"
-RETENTION_DAYS="{{ immich_backup.retention_days }}"
+RCLONE_PATH="{{ immich.backup.rclone_path }}"
+RETENTION_DAYS="{{ immich.backup.retention_days }}"
 
 # Immich paths
 IMMICH_LIBRARY="{{ immich.library_directory }}"
@@ -86,7 +86,7 @@ backup_and_compress_folder "${IMMICH_LIBRARY}/profile" "profile"
 
 # Sync to Yandex Disk
 log "Syncing backup to Yandex Disk (${RCLONE_REMOTE}:${RCLONE_PATH})..."
-if rclone sync "${BACKUP_BASE_DIR}" "${RCLONE_REMOTE}:${RCLONE_PATH}" --config "${HOME}/.config/rclone/rclone.conf" --progress --verbose --ignore-checksum --check-first --size-only --log-file="{{ immich_backup.log_file }}" 2>&1; then
+if rclone sync "${BACKUP_BASE_DIR}" "${RCLONE_REMOTE}:${RCLONE_PATH}" --config "${HOME}/.config/rclone/rclone.conf" --progress --verbose --ignore-checksum --check-first --size-only --log-file="{{ immich.backup.log_file }}" 2>&1; then
     log "Backup synced to Yandex Disk successfully"
 else
     log "WARNING: Failed to sync backup to Yandex Disk"

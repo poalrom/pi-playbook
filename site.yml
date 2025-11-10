@@ -55,10 +55,6 @@
       when: immich_db_password != ""
       tags: ["immich"]
 
-    - role: immich-backup
-      when: immich_db_password != "" and yandex_disk_token != ""
-      tags: ["immich-backup"]
-
     - role: obsidian-livesync
       when: obsidian_livesync_db_password != ""
       tags: ["obsidian"]

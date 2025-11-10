@@ -360,11 +360,11 @@ ansible-playbook -i inventory.yml site.yml --tags samba
 # Photo & video management
 ansible-playbook -i inventory.yml site.yml --tags immich
 
-# Rclone installation and configuration (required for immich-backup)
+# Rclone installation and configuration (required for immich backups)
 ansible-playbook -i inventory.yml site.yml --tags rclone
 
-# Immich backups (requires yandex_disk_token in vault.yml and rclone role)
-ansible-playbook -i inventory.yml site.yml --tags immich-backup
+# Note: Immich backups are automatically configured when running the immich role
+# if yandex_disk_token is set in vault.yml
 
 # Obsidian sync server
 ansible-playbook -i inventory.yml site.yml --tags obsidian

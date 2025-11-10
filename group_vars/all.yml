@@ -82,13 +82,12 @@ immich:
   library_directory: "{{ storage.mount_point }}/immich/library"
   # Placed to the main storage to avoid permission conflicts
   database_directory: "{{ docker.stacks_directory }}/immich/database"
-
-# Immich Backup Configuration
-immich_backup:
-  local_directory: "{{ storage.mount_point }}/backups/immich"
-  retention_days: 3
-  rclone_path: "immich-backups"
-  log_file: "{{ log_directory }}/immich-backup-rclone.log"
+  # Backup Configuration
+  backup:
+    local_directory: "{{ storage.mount_point }}/backups/immich"
+    retention_days: 3
+    rclone_path: "immich-backups"
+    log_file: "{{ log_directory }}/immich-backup-rclone.log"
 
 rclone:
   remote: "yandex-disk"
