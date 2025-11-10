@@ -34,4 +34,5 @@
       - telnet
       - speedtest-cli
       - iperf3
+      - lsof
     state: present

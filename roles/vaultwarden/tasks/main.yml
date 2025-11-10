@@ -60,3 +60,57 @@
       - "2. Configure public access via Nginx Proxy Manager"
       - "3. Set up SSL certificate for the domain"
       - "4. Install Bitwarden clients and connect to your self-hosted instance"
+
+# =============================================================================
+# Vaultwarden Backup Configuration
+# =============================================================================
+
+- name: Create local backup directory
+  ansible.builtin.file:
+    path: "{{ vaultwarden.backup.local_directory }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+  when: yandex_disk_token != ""
+
+- name: Create log directory
+  ansible.builtin.file:
+    path: "{{ log_directory }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+  when: yandex_disk_token != ""
+
+- name: Create Vaultwarden backup script
+  ansible.builtin.template:
+    src: backup-vaultwarden.sh.j2
+    dest: /usr/local/bin/backup-vaultwarden.sh
+    mode: "0755"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+  when: yandex_disk_token != ""
+
+- name: Create cron job for Vaultwarden backup
+  ansible.builtin.cron:
+    name: "Vaultwarden backup daily at 4 AM"
+    minute: "0"
+    hour: "4"
+    job: "HOME=/home/{{ users.admin_user }} PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /usr/local/bin/backup-vaultwarden.sh"
+    user: "{{ users.admin_user }}"
+    state: present
+  when: yandex_disk_token != ""
+
+- name: Display Vaultwarden backup configuration
+  ansible.builtin.debug:
+    msg:
+      - "Vaultwarden backup has been configured!"
+      - "Backup Schedule: Daily at 4:00 AM (via cron)"
+      - "Local Backup Directory: {{ vaultwarden.backup.local_directory }}"
+      - "Remote: {{ rclone.remote }}:{{ vaultwarden.backup.rclone_path }}"
+      - "Retention: {{ vaultwarden.backup.retention_days }} days"
+      - "To manually run a backup: /usr/local/bin/backup-vaultwarden.sh"
+      - "To view cron job: crontab -l -u {{ users.admin_user }}"
+      - "To view backup logs: Check {{ vaultwarden.backup.log_file }} or system logs"
+  when: yandex_disk_token != ""

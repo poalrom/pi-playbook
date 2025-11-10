@@ -1,0 +1,81 @@
+#!/bin/bash
+# =============================================================================
+# Vaultwarden Backup Script
+# =============================================================================
+# This script backs up Vaultwarden data directory (SQLite database and attachments)
+# to both local storage and Yandex Disk using rclone.
+# =============================================================================
+
+set -euo pipefail
+
+# Configuration
+BACKUP_BASE_DIR="{{ vaultwarden.backup.local_directory }}"
+TIMESTAMP=$(date +"%Y-%m-%d-%H%M%S")
+RCLONE_REMOTE="{{ rclone.remote }}"
+RCLONE_PATH="{{ vaultwarden.backup.rclone_path }}"
+RETENTION_DAYS="{{ vaultwarden.backup.retention_days }}"
+
+# Vaultwarden paths
+VAULTWARDEN_DATA="{{ vaultwarden.data_path }}"
+
+# Log function
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | logger -t vaultwarden-backup
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"
+}
+
+# Error handling
+error_exit() {
+    log "ERROR: $1"
+    exit 1
+}
+
+# Start backup
+log "Starting Vaultwarden backup to ${BACKUP_BASE_DIR}"
+
+# Create backup base directory and log directory
+mkdir -p "${BACKUP_BASE_DIR}" || error_exit "Failed to create backup directory"
+mkdir -p {{ log_directory }} || true
+
+# Backup and compress Vaultwarden data directory
+log "Backing up and compressing Vaultwarden data directory..."
+if [ -d "${VAULTWARDEN_DATA}" ]; then
+    log "Backing up Vaultwarden data folder..."
+    if command -v tar &> /dev/null; then
+        cd "${BACKUP_BASE_DIR}"
+        if nice -n 10 tar -czf "${TIMESTAMP}-vaultwarden-data.tar.gz" -C "$(dirname "${VAULTWARDEN_DATA}")" "$(basename "${VAULTWARDEN_DATA}")"; then
+            log "Vaultwarden data folder backed up and compressed successfully"
+        else
+            error_exit "Failed to compress Vaultwarden data folder"
+        fi
+    else
+        log "WARNING: tar not found, copying Vaultwarden data folder without compression"
+        local uncompressed_dir="${BACKUP_BASE_DIR}/${TIMESTAMP}-vaultwarden-data"
+        if mkdir -p "${uncompressed_dir}" && cp -r "${VAULTWARDEN_DATA}" "${uncompressed_dir}/"; then
+            log "Vaultwarden data folder backed up successfully (uncompressed)"
+        else
+            error_exit "Failed to backup Vaultwarden data folder"
+        fi
+    fi
+else
+    error_exit "Vaultwarden data directory not found at ${VAULTWARDEN_DATA}"
+fi
+
+# Sync to Yandex Disk
+log "Syncing backup to Yandex Disk (${RCLONE_REMOTE}:${RCLONE_PATH})..."
+if rclone sync "${BACKUP_BASE_DIR}" "${RCLONE_REMOTE}:${RCLONE_PATH}" --config "${HOME}/.config/rclone/rclone.conf" --progress --verbose --ignore-checksum --check-first --size-only --log-file="{{ vaultwarden.backup.log_file }}" 2>&1; then
+    log "Backup synced to Yandex Disk successfully"
+else
+    log "WARNING: Failed to sync backup to Yandex Disk"
+fi
+
+# Clean up old local backups
+log "Cleaning up backups older than ${RETENTION_DAYS} days..."
+# Remove old compressed archives (.tar.gz)
+find "${BACKUP_BASE_DIR}" -type f -name "*.tar.gz" -mtime +${RETENTION_DAYS} -delete 2>/dev/null || true
+# Remove old uncompressed backup directories
+find "${BACKUP_BASE_DIR}" -type d -name "20*" -mtime +${RETENTION_DAYS} -exec rm -rf {} + 2>/dev/null || true
+log "Cleanup completed"
+
+log "Vaultwarden backup completed successfully"
+

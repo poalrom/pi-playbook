@@ -293,6 +293,13 @@ sudo smbpasswd -a home-pi
 - Enable 2FA for all accounts
 - Regular backups are recommended (data stored in `/opt/stacks/vaultwarden/data`)
 
+**Backup configuration**:
+- Automated backups to Yandex Disk are configured via cron (daily at 4 AM)
+- Backups include the entire Vaultwarden data directory (SQLite database and attachments)
+- Local backups stored in `/media/pi/home/backups/vaultwarden` with 3-day retention
+- To manually run backup: `/usr/local/bin/backup-vaultwarden.sh`
+- View backup logs: `cat /media/pi/home/log/vaultwarden-backup-rclone.log`
+
 ### 8. Torrent VPN Setup
 
 **Initial configuration**:
@@ -360,7 +367,7 @@ ansible-playbook -i inventory.yml site.yml --tags samba
 # Photo & video management
 ansible-playbook -i inventory.yml site.yml --tags immich
 
-# Rclone installation and configuration (required for immich backups)
+# Rclone installation and configuration (required for immich and vaultwarden backups)
 ansible-playbook -i inventory.yml site.yml --tags rclone
 
 # Note: Immich backups are automatically configured when running the immich role
@@ -371,6 +378,9 @@ ansible-playbook -i inventory.yml site.yml --tags obsidian
 
 # Password manager
 ansible-playbook -i inventory.yml site.yml --tags vaultwarden
+
+# Note: Vaultwarden backups are automatically configured when running the vaultwarden role
+# if yandex_disk_token is set in vault.yml
 
 # Torrent client with VPN (requires VPN config file)
 ansible-playbook -i inventory.yml site.yml --tags torrent
