@@ -70,7 +70,7 @@ system:
 # DDNS Configuration
 ddns:
   domain: "{{ ddns_domain }}"
-  service_url: "https://myaddr.tools/update"
+  service_url: "https://ipv4.myaddr.tools/update"
   update_interval: "hourly"
 
 # Immich Photo Management
