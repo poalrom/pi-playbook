@@ -9,7 +9,7 @@
     state: present
     recreate: always
 
-- name: Restart openvpn
+- name: Restart wireguard
   ansible.builtin.systemd:
-    name: "openvpn-client@{{ torrent_vpn.vpn_config_name }}"
+    name: "wg-quick@{{ torrent_vpn.vpn_config_name }}"
     state: restarted

@@ -1,0 +1,32 @@
+# =============================================================================
+# WireGuard Configuration File Example
+# =============================================================================
+# Copy this file to myvpn.conf (or your vpn_config_name.conf) and fill in
+# your actual VPN provider's configuration details.
+#
+# The file will be copied to /etc/wireguard/myvpn.conf on the target system.
+# =============================================================================
+
+[Interface]
+# Your private key (keep this secret!)
+PrivateKey = YOUR_PRIVATE_KEY_HERE
+
+# Optional: Set DNS servers
+# DNS = 1.1.1.1, 8.8.8.8
+
+# Optional: Set address for this interface
+# Address = 10.0.0.2/24
+
+[Peer]
+# VPN server's public key
+PublicKey = YOUR_SERVER_PUBLIC_KEY_HERE
+
+# VPN server endpoint (IP:port)
+Endpoint = 0.0.0.0:51820
+
+# Optional: Allowed IPs (0.0.0.0/0 means route all traffic through VPN)
+AllowedIPs = 0.0.0.0/0
+
+# Optional: Persistent keepalive (useful for NAT traversal)
+# PersistentKeepalive = 25
+

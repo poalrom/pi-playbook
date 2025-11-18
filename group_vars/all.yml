@@ -141,8 +141,7 @@ torrent_vpn:
   qbittorrent_config_path: "{{ docker.stacks_directory }}/qbittorrent/config"
   download_path: "{{ shared_directory }}/downloads"
   incomplete_path: "{{ storage.mount_point }}/torrents/incomplete"
-  vpn_config_name: "myvpn"  # Name for OpenVPN service (without .conf extension)
-  vpn_interface: "tun0"  # VPN interface name (auto-detect or manual)
+  vpn_config_name: "myvpn"  # Name for WireGuard service (without .conf extension)
   qbittorrent_webui_port: 8234
   # Hash of the default password "adminadmin"
   default_password: "@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"

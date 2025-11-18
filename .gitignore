@@ -5,7 +5,9 @@ vault.yml
 
 # VPN Configuration files (keep .example files)
 roles/torrent-vpn/files/*.ovpn
+roles/torrent-vpn/files/*.conf
 !roles/torrent-vpn/files/*.ovpn.example
+!roles/torrent-vpn/files/*.conf.example
 
 # Backup files
 *.backup

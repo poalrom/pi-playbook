@@ -63,17 +63,17 @@ cd pi-playbook
 
 4. **Configure VPN for torrent client** (if using torrent-vpn role):
    ```bash
-   # Copy the example VPN config file
-   cp roles/torrent-vpn/files/myvpn.ovpn.example roles/torrent-vpn/files/myvpn.ovpn
+   # Copy the example WireGuard config file
+   cp roles/torrent-vpn/files/myvpn.conf.example roles/torrent-vpn/files/myvpn.conf
    
-   # Edit the VPN config file with your provider's details
+   # Edit the WireGuard config file with your provider's details
    # You'll need:
-   # - VPN server address and port
-   # - CA certificate
-   # - Client certificate and key (if required)
-   # - TLS authentication key (if required)
+   # - PrivateKey: Your WireGuard private key
+   # - PublicKey: VPN server's public key
+   # - Endpoint: VPN server IP address and port (e.g., 1.2.3.4:51820)
+   # - AllowedIPs: Typically 0.0.0.0/0 to route all traffic through VPN
    
-   # The file will be automatically deployed to /etc/openvpn/myvpn.conf
+   # The file will be automatically deployed to /etc/wireguard/myvpn.conf
    ```
 
 5. **Get Yandex Disk token** (for Immich backups):
@@ -149,7 +149,7 @@ ansible-playbook -i inventory.yml site.yml
 - **Immich**: Self-hosted photo and video management (public)
 - **Obsidian LiveSync**: CouchDB-based sync server for Obsidian vaults (public)
 - **Vaultwarden**: Self-hosted Bitwarden-compatible password manager (public)
-- **qBittorrent with VPN**: Torrent client with OpenVPN kill switch protection (local network only)
+- **qBittorrent with VPN**: Torrent client with WireGuard kill switch protection (local network only)
 
 ## 🔧 Service Access
 
@@ -309,13 +309,15 @@ sudo smbpasswd -a home-pi
 # ⚠️ IMPORTANT: Change password on first login!
 
 # Verify VPN connection:
-sudo systemctl status openvpn-client@myvpn
+sudo systemctl status wg-quick@myvpn
 
-# Check VPN interface:
-ip addr show tun0
+# Check WireGuard interface:
+ip addr show myvpn
+# or
+wg show myvpn
 
 # Verify kill switch is working:
-# - qBittorrent should only bind to tun0 interface
+# - qBittorrent should only bind to WireGuard interface (myvpn)
 # - Firewall rules prevent traffic outside VPN
 # - If VPN disconnects, torrent traffic is blocked
 
@@ -324,10 +326,10 @@ ip addr show tun0
 ```
 
 **VPN Configuration**:
-- OpenVPN config is located at `/etc/openvpn/client/myvpn.conf`
-- VPN service runs as `openvpn-client@myvpn`
+- WireGuard config is located at `/etc/wireguard/myvpn.conf`
+- VPN service runs as `wg-quick@myvpn`
 - The playbook automatically configures firewall rules to:
-  - Allow VPN server connection (outgoing)
+  - Allow WireGuard server connection (outgoing UDP, port from config)
   - Allow DNS resolution (outgoing)
   - Block all other outgoing traffic when VPN is active (kill switch)
   - Allow qBittorrent WebUI access from local network only
@@ -335,16 +337,19 @@ ip addr show tun0
 **Troubleshooting**:
 ```bash
 # Check VPN connection status
-sudo journalctl -u openvpn-client@myvpn -f
+sudo journalctl -u wg-quick@myvpn -f
+
+# Verify WireGuard interface status
+wg show myvpn
 
 # Verify qBittorrent is bound to VPN interface
 docker exec qbittorrent ip addr show
 
 # Test VPN connectivity
-ping -I tun0 8.8.8.8
+ping -I myvpn 8.8.8.8
 
 # Check firewall rules
-sudo ufw status numbered | grep -E "(OpenVPN|DNS|8234)"
+sudo ufw status numbered | grep -E "(WireGuard|DNS|8234)"
 ```
 
 ## 🛠️ Selective Deployment
@@ -400,7 +405,7 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 | Samba | 137,138,139,445 | Local only | File sharing |
 | Vaultwarden | 11011 | Local only | Password manager |
 | qBittorrent WebUI | 8234 | Local only | Torrent client management |
-| OpenVPN | Dynamic | VPN server | VPN connection (outgoing) |
+| WireGuard | Dynamic (UDP) | VPN server | VPN connection (outgoing) |
 | DNS | 53/udp | Any | DNS resolution (outgoing) |
 
 ### Security Hardening
@@ -411,7 +416,7 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 - ✅ UFW firewall with deny-by-default
 - ✅ Regular security updates
 - ✅ Service isolation via Docker networks
-- ✅ VPN kill switch for torrent traffic (prevents leaks if VPN disconnects)
+- ✅ WireGuard VPN kill switch for torrent traffic (prevents leaks if VPN disconnects)
 
 ## 🔧 Maintenance & Troubleshooting
 
