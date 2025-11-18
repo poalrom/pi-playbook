@@ -59,14 +59,6 @@
     project_src: "{{ immich.config_path }}"
     state: present
 
-- name: Allow Immich on custom port from local network only
-  ufw:
-    rule: allow
-    port: "{{ immich.port }}"
-    proto: tcp
-    src: "{{ network.local_subnet }}"
-    comment: "Immich on custom port - local network only"
-
 - name: Wait for Immich to be ready
   ansible.builtin.wait_for:
     host: "{{ network.pi_ip }}"

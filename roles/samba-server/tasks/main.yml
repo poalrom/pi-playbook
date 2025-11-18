@@ -67,24 +67,6 @@
     - smbd
     - nmbd
 
-- name: Allow Samba UDP ports from local network
-  ufw:
-    rule: allow
-    port: "{{ item }}"
-    proto: udp
-    src: "{{ network.local_subnet }}"
-    comment: "Samba UDP"
-  loop: "{{ firewall.samba_ports.udp }}"
-
-- name: Allow Samba TCP ports from local network
-  ufw:
-    rule: allow
-    port: "{{ item }}"
-    proto: tcp
-    src: "{{ network.local_subnet }}"
-    comment: "Samba TCP"
-  loop: "{{ firewall.samba_ports.tcp }}"
-
 - name: Test Samba share access
   ansible.builtin.command: smbclient -L localhost -U {{ users.admin_user }}%{{ samba_password }}
   register: samba_test

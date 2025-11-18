@@ -113,14 +113,6 @@
     - { section: "BitTorrent", option: "Session\\Interface", value: "{{ torrent_vpn.vpn_config_name }}" }
     - { section: "BitTorrent", option: "Session\\InterfaceName", value: "{{ torrent_vpn.vpn_config_name }}" }
 
-- name: Allow WebUI access from local network
-  ufw:
-    rule: allow
-    port: "{{ torrent_vpn.qbittorrent_webui_port }}"
-    proto: tcp
-    src: "{{ network.local_subnet }}"
-    comment: "qBittorrent WebUI from LAN"
-
 - name: Start qBittorrent Docker stack
   community.docker.docker_compose_v2:
     project_src: "{{ torrent_vpn.config_path }}"

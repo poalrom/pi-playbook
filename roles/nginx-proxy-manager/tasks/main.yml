@@ -43,14 +43,6 @@
     delay: 10
     timeout: 60
 
-- name: Allow Nginx Proxy Manager on custom port from local network only
-  ufw:
-    rule: allow
-    port: "{{ nginx_proxy_manager.port }}"
-    proto: tcp
-    src: "{{ network.local_subnet }}"
-    comment: "Nginx Proxy Manager on custom port - local network only"
-
 - name: Download Nginx Proxy Manager Bash API
   ansible.builtin.get_url:
     url: https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-Bash-API/main/npm-api.sh

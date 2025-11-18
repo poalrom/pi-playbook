@@ -110,11 +110,11 @@ cd pi-playbook
 
 ### Deployment
 
-**⚠️ CRITICAL: Run security hardening first!**
+**⚠️ CRITICAL: Run security hardening and firewall first!**
 
 ```bash
-# Step 1: Initial security hardening (MUST BE FIRST)
-ansible-playbook -i inventory.yml site.yml --tags security
+# Step 1: Initial security hardening and firewall (MUST BE FIRST)
+ansible-playbook -i inventory.yml site.yml --tags security,firewall
 
 # Step 2: Update inventory to use custom SSH port
 # Edit inventory.yml and change ansible_ssh_port from 22 to 2312
@@ -129,7 +129,7 @@ ansible-playbook -i inventory.yml site.yml
 - **System hardening**: Updates, secure configuration
 - **User management**: New admin user, removal of default `pi` user
 - **SSH security**: Key-based auth, custom port, password auth disabled
-- **Firewall**: UFW with strict deny-by-default rules
+- **Firewall**: UFW with strict deny-by-default rules (separate role)
 - **Intrusion prevention**: Fail2Ban with automatic IP blocking
 
 ### Core Infrastructure  
@@ -360,6 +360,9 @@ Deploy specific components using tags:
 # Security hardening only (run first!)
 ansible-playbook -i inventory.yml site.yml --tags security
 
+# Firewall configuration (run after security hardening)
+ansible-playbook -i inventory.yml site.yml --tags firewall
+
 # Core infrastructure
 ansible-playbook -i inventory.yml site.yml --tags docker,nginx
 
@@ -403,6 +406,10 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 | HTTP | 80 | Internet | Reverse proxy entry |
 | HTTPS | 443 | Internet | Secure web traffic |
 | Samba | 137,138,139,445 | Local only | File sharing |
+| Immich | 2283 | Local only | Photo & video management |
+| Nginx Proxy Manager | 81 | Local only | Reverse proxy management |
+| Uptime Kuma | 3001 | Local only | Monitoring dashboard |
+| Glances | 61208 | Local only | System monitoring |
 | Vaultwarden | 11011 | Local only | Password manager |
 | qBittorrent WebUI | 8234 | Local only | Torrent client management |
 | WireGuard | Dynamic (UDP) | VPN server | VPN connection (outgoing) |

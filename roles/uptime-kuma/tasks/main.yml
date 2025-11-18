@@ -40,14 +40,6 @@
     delay: 15
     timeout: 120
 
-- name: Allow Uptime Kuma on custom port from local network only
-  ufw:
-    rule: allow
-    port: "{{ uptime_kuma.port }}"
-    proto: tcp
-    src: "{{ network.local_subnet }}"
-    comment: "Uptime Kuma on custom port - local network only"
-
 - name: Display Uptime Kuma access information
   ansible.builtin.debug:
     msg:

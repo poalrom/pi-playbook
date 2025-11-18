@@ -40,14 +40,6 @@
     delay: 10
     timeout: 60
 
-- name: Allow Vaultwarden on custom port from local network only
-  ufw:
-    rule: allow
-    port: "{{ vaultwarden.port }}"
-    proto: tcp
-    src: "{{ network.local_subnet }}"
-    comment: "Vaultwarden on custom port - local network only"
-
 - name: Display Vaultwarden access information
   ansible.builtin.debug:
     msg:

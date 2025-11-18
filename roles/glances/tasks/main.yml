@@ -38,14 +38,6 @@
     method: GET
   register: glances_api_test
 
-- name: Allow Glances on custom port from local network only
-  ufw:
-    rule: allow
-    port: "{{ glances.port }}"
-    proto: tcp
-    src: "{{ network.local_subnet }}"
-    comment: "Glances on custom port - local network only"
-
 - name: Display Glances access information
   ansible.builtin.debug:
     msg:

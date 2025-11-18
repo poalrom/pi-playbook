@@ -1,0 +1,138 @@
+---
+# =============================================================================
+# UFW Firewall Configuration
+# =============================================================================
+
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Reset UFW to defaults
+  ufw:
+    state: reset
+  when: not ansible_check_mode
+
+- name: Set UFW default policies
+  ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - { direction: "incoming", policy: "deny" }
+    - { direction: "outgoing", policy: "allow" }
+
+# =============================================================================
+# Base Rules
+# =============================================================================
+
+- name: Allow SSH on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ ssh.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "SSH on custom port - local network only"
+
+- name: Allow HTTP traffic
+  ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+    comment: "HTTP for reverse proxy"
+  when: firewall.allow_http | default(true)
+
+- name: Allow HTTPS traffic
+  ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+    comment: "HTTPS for reverse proxy"
+  when: firewall.allow_https | default(true)
+
+# =============================================================================
+# Service-Specific Rules
+# =============================================================================
+
+- name: Allow qBittorrent WebUI access from local network
+  ufw:
+    rule: allow
+    port: "{{ torrent_vpn.qbittorrent_webui_port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "qBittorrent WebUI from LAN"
+
+- name: Allow Vaultwarden on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ vaultwarden.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Vaultwarden on custom port - local network only"
+
+- name: Allow Immich on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ immich.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Immich on custom port - local network only"
+
+- name: Allow Nginx Proxy Manager on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ nginx_proxy_manager.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Nginx Proxy Manager on custom port - local network only"
+
+- name: Allow Samba UDP ports from local network
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: udp
+    src: "{{ network.local_subnet }}"
+    comment: "Samba UDP"
+  loop: "{{ firewall.samba_ports.udp }}"
+
+- name: Allow Samba TCP ports from local network
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Samba TCP"
+  loop: "{{ firewall.samba_ports.tcp }}"
+
+- name: Allow Uptime Kuma on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ uptime_kuma.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Uptime Kuma on custom port - local network only"
+
+- name: Allow Glances on custom port from local network only
+  ufw:
+    rule: allow
+    port: "{{ glances.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Glances on custom port - local network only"
+
+# =============================================================================
+# Enable and Display Status
+# =============================================================================
+
+- name: Enable UFW
+  ufw:
+    state: enabled
+    logging: "on"
+
+- name: Display UFW status
+  ansible.builtin.command: ufw status verbose
+  register: firewall_ufw_status
+  changed_when: false
+
+- name: Show firewall status
+  ansible.builtin.debug:
+    var: firewall_ufw_status.stdout_lines

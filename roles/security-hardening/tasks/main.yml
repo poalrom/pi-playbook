@@ -7,10 +7,6 @@
   ansible.builtin.include_tasks: ssh_hardening.yml
   tags: ["ssh"]
 
-- name: Include firewall configuration tasks
-  ansible.builtin.include_tasks: firewall.yml
-  tags: ["firewall"]
-
 - name: Include fail2ban setup tasks
   ansible.builtin.include_tasks: fail2ban.yml
   tags: ["fail2ban"]

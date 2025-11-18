@@ -30,6 +30,9 @@
       tags: ["security"]
       # Note: User management is handled in the separate user management phase above
 
+    - role: firewall
+      tags: ["firewall"]
+
     - role: torrent-vpn
       tags: ["torrent"]
 
