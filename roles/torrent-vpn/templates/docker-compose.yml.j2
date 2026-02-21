@@ -1,11 +1,33 @@
 name: qbittorrent
 
 services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - FIREWALL_VPN_INPUT_PORTS={{ torrent_vpn.qbittorrent_webui_port }}
+    volumes:
+      - {{ torrent_vpn.config_path }}/{{ torrent_vpn.vpn_config_name }}.conf:/gluetun/wireguard/wg0.conf:ro
+    ports:
+      - "{{ torrent_vpn.qbittorrent_webui_port }}:{{ torrent_vpn.qbittorrent_webui_port }}/tcp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     container_name: qbittorrent
     restart: unless-stopped
-    network_mode: host
+    network_mode: service:gluetun
+    depends_on:
+      - gluetun
     environment:
       - PUID={{ admin_user_uid | default(1000) }}
       - PGID={{ admin_user_gid | default(1000) }}

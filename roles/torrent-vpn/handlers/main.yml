@@ -8,8 +8,3 @@
     project_src: "{{ torrent_vpn.config_path }}"
     state: present
     recreate: always
-
-- name: Restart wireguard
-  ansible.builtin.systemd:
-    name: "wg-quick@{{ torrent_vpn.vpn_config_name }}"
-    state: restarted

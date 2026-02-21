@@ -38,16 +38,10 @@
     group: "{{ users.admin_user }}"
     mode: '0755'
 
-- name: Create WireGuard config directory
-  ansible.builtin.file:
-    path: "/etc/wireguard"
-    state: directory
-    mode: '0700'
-
 - name: Copy WireGuard config file
   ansible.builtin.copy:
     src: "{{ torrent_vpn.vpn_config_name }}.conf"
-    dest: "/etc/wireguard/{{ torrent_vpn.vpn_config_name }}.conf"
+    dest: "{{ torrent_vpn.config_path }}/{{ torrent_vpn.vpn_config_name }}.conf"
     mode: '0600'
 
 - name: Get admin user UID
@@ -87,31 +81,11 @@
     - { section: "BitTorrent", option: "Session\\AddTorrentStopped", value: "true" }
     - { section: "BitTorrent", option: "Session\\AnonymousModeEnabled", value: "true" }
     - { section: "BitTorrent", option: "Session\\GlobalMaxRatio", value: "1e-06" }
-    - { section: "BitTorrent", option: "Session\\GlobalUPSpeedLimit", value: "1" }
     - { section: "BitTorrent", option: "Session\\DefaultSavePath", value: "/downloads" }
     - { section: "BitTorrent", option: "Session\\TempPath", value: "/incomplete" }
     - { section: "BitTorrent", option: "Session\\TempPathEnabled", value: "true" }
     - { section: "Preferences", option: "WebUI\\Port", value: "{{ torrent_vpn.qbittorrent_webui_port }}" }
     - { section: "Preferences", option: "WebUI\\Password_PBKDF2", value: "{{ torrent_vpn.default_password }}" }
-
-- name: Enable WireGuard service
-  ansible.builtin.systemd:
-    name: "wg-quick@{{ torrent_vpn.vpn_config_name }}"
-    enabled: true
-    daemon_reload: true
-
-- name: Configure qBittorrent
-  ansible.builtin.ini_file:
-    path: "{{ torrent_vpn.qbittorrent_config_path }}/qBittorrent/qBittorrent.conf"
-    section: "{{ item.section }}"
-    option: "{{ item.option }}"
-    value: "{{ item.value }}"
-    owner: "{{ users.admin_user }}"
-    group: "{{ users.admin_user }}"
-    mode: '0644'
-  with_items:
-    - { section: "BitTorrent", option: "Session\\Interface", value: "{{ torrent_vpn.vpn_config_name }}" }
-    - { section: "BitTorrent", option: "Session\\InterfaceName", value: "{{ torrent_vpn.vpn_config_name }}" }
 
 - name: Start qBittorrent Docker stack
   community.docker.docker_compose_v2:
