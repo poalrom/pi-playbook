@@ -145,3 +145,11 @@ torrent_vpn:
   qbittorrent_webui_port: 8234
   # Hash of the default password "adminadmin"
   default_password: "@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"
+
+# TinyMediaManager
+tinymediamanager:
+  port: 4261
+  config_path: "{{ docker.stacks_directory }}/tinymediamanager"
+  data_path: "{{ docker.stacks_directory }}/tinymediamanager/data"
+  tvshows_media_path: "{{ shared_directory }}/tvshows"
+  movies_media_path: "{{ shared_directory }}/movies"

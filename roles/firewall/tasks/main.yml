@@ -119,6 +119,14 @@
     src: "{{ network.local_subnet }}"
     comment: "Glances on custom port - local network only"
 
+- name: Allow TinyMediaManager from local network only
+  ufw:
+    rule: allow
+    port: "{{ tinymediamanager.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "TinyMediaManager - local network only"
+
 # =============================================================================
 # Enable and Display Status
 # =============================================================================

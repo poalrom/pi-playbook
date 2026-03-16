@@ -1,0 +1,17 @@
+services:
+  tinymediamanager:
+    image: tinymediamanager/tinymediamanager:latest
+    container_name: tinymediamanager
+    restart: unless-stopped
+    ports:
+      - "{{ tinymediamanager.port }}:4000"
+    environment:
+      - USER_ID=1000
+      - GROUP_ID=1000
+      - TZ={{ system.timezone }}
+      - LC_ALL={{ system.locale }}
+      - LANG={{ system.locale }}
+    volumes:
+      - {{ tinymediamanager.data_path }}:/data
+      - {{ tinymediamanager.tvshows_media_path }}:/media/tvshows
+      - {{ tinymediamanager.movies_media_path }}:/media/movies

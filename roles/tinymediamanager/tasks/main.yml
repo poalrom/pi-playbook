@@ -1,0 +1,58 @@
+---
+# =============================================================================
+# TinyMediaManager Deployment
+# =============================================================================
+
+- name: Create TinyMediaManager directory
+  ansible.builtin.file:
+    path: "{{ tinymediamanager.config_path }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create TinyMediaManager data directory
+  ansible.builtin.file:
+    path: "{{ tinymediamanager.data_path }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create TinyMediaManager media directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+  loop:
+    - "{{ tinymediamanager.tvshows_media_path }}"
+    - "{{ tinymediamanager.movies_media_path }}"
+
+- name: Create TinyMediaManager docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ tinymediamanager.config_path }}/compose.yml"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+  notify: Restart tinymediamanager
+
+- name: Start TinyMediaManager
+  community.docker.docker_compose_v2:
+    project_src: "{{ tinymediamanager.config_path }}"
+    state: present
+
+- name: Wait for TinyMediaManager to be ready
+  ansible.builtin.wait_for:
+    host: "{{ network.pi_ip }}"
+    port: "{{ tinymediamanager.port }}"
+    delay: 15
+    timeout: 120
+
+- name: Display TinyMediaManager access information
+  ansible.builtin.debug:
+    msg:
+      - "TinyMediaManager is now running!"
+      - "Access it at: http://{{ network.pi_ip }}:{{ tinymediamanager.port }}"

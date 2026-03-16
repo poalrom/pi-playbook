@@ -42,6 +42,9 @@
     - role: docker-setup
       tags: ["docker"]
 
+    - role: tinymediamanager
+      tags: ["tmm"]
+
     - role: uptime-kuma
       tags: ["kuma"]
 
