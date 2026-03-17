@@ -13,11 +13,13 @@ services:
     environment:
       - VPN_SERVICE_PROVIDER=custom
       - VPN_TYPE=wireguard
-      - FIREWALL_VPN_INPUT_PORTS={{ torrent_vpn.qbittorrent_webui_port }}
+      - FIREWALL_VPN_INPUT_PORTS={{ torrent_vpn.qbittorrent_webui_port }},{{ torrent_vpn.torrent_port }}
     volumes:
       - {{ torrent_vpn.config_path }}/{{ torrent_vpn.vpn_config_name }}.conf:/gluetun/wireguard/wg0.conf:ro
     ports:
       - "{{ torrent_vpn.qbittorrent_webui_port }}:{{ torrent_vpn.qbittorrent_webui_port }}/tcp"
+      - "{{ torrent_vpn.torrent_port }}:{{ torrent_vpn.torrent_port }}/tcp"
+      - "{{ torrent_vpn.torrent_port }}:{{ torrent_vpn.torrent_port }}/udp"
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
 

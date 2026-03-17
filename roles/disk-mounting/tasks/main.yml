@@ -1,9 +1,13 @@
 ---
 
-- name: Install exfat-fuse
+- name: Install exfat support
   ansible.builtin.apt:
-    name: exfat-fuse
+    name: "{{ item }}"
     state: present
+  loop:
+    - exfat-progs
+    - exfat-utils
+  ignore_errors: true
 
 - name: Create mount directory for {{ storage.device }}
   ansible.builtin.file:

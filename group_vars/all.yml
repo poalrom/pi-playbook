@@ -41,7 +41,7 @@ fail2ban:
 storage:
   device: "/dev/sda2"
   mount_point: "/media/pi/home"
-  filesystem: "exfat-fuse"
+  filesystem: "exfat"
 
 # Placed separately to avoid recursion templating
 log_directory: "{{ storage.mount_point }}/log"
@@ -143,6 +143,7 @@ torrent_vpn:
   incomplete_path: "{{ storage.mount_point }}/torrents/incomplete"
   vpn_config_name: "myvpn"  # Name for WireGuard service (without .conf extension)
   qbittorrent_webui_port: 8234
+  torrent_port: 45861
   # Hash of the default password "adminadmin"
   default_password: "@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"
 

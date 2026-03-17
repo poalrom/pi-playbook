@@ -334,6 +334,23 @@ wg show myvpn
   - Block all other outgoing traffic when VPN is active (kill switch)
   - Allow qBittorrent WebUI access from local network only
 
+**Port Forwarding for Torrent Speed**:
+If you use a custom WireGuard server (e.g., wg-easy), you need to forward the torrent listening port on the VPN server to improve download speeds. Without this, peers cannot connect to you directly.
+
+On your WireGuard server host, run:
+```bash
+# Replace <PI_WG_IP> with the Pi's WireGuard tunnel IP
+# Find it with: docker exec gluetun ip addr
+iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 6881 -j DNAT --to-destination <PI_WG_IP>:6881
+iptables -t nat -A PREROUTING -i eth0 -p udp --dport 6881 -j DNAT --to-destination <PI_WG_IP>:6881
+iptables -A FORWARD -p tcp --dport 6881 -j ACCEPT
+iptables -A FORWARD -p udp --dport 6881 -j ACCEPT
+
+# Make persistent across reboots
+apt install iptables-persistent
+netfilter-persistent save
+```
+
 **Troubleshooting**:
 ```bash
 # Check VPN connection status
