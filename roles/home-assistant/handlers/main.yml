@@ -1,0 +1,6 @@
+---
+- name: Restart home-assistant
+  community.docker.docker_compose_v2:
+    project_src: "{{ home_assistant.config_path }}"
+    state: present
+    recreate: always

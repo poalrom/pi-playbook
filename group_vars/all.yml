@@ -60,7 +60,7 @@ security:
 
 # System Settings
 system:
-  timezone: "UTC" # Change as needed
+  timezone: "Europe/Amsterdam"
   locale: "en_US.UTF-8"
 
 # =============================================================================
@@ -115,6 +115,13 @@ samba:
 glances:
   port: 61208
   config_path: "{{ docker.stacks_directory }}/glances"
+
+# Home Assistant Home Automation
+home_assistant:
+  port: 8123
+  config_path: "{{ docker.stacks_directory }}/home-assistant"
+  data_path: "{{ docker.stacks_directory }}/home-assistant/config"
+  timezone: "{{ system.timezone }}"
 
 # Obsidian LiveSync
 obsidian_livesync:

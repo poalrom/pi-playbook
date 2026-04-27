@@ -54,6 +54,9 @@
     - role: glances
       tags: ["glances"]
 
+    - role: home-assistant
+      tags: ["home-assistant"]
+
     - role: rclone
       tags: ["rclone"]
 

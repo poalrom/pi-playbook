@@ -149,6 +149,7 @@ ansible-playbook -i inventory.yml site.yml
 - **Immich**: Self-hosted photo and video management (public)
 - **Obsidian LiveSync**: CouchDB-based sync server for Obsidian vaults (public)
 - **Vaultwarden**: Self-hosted Bitwarden-compatible password manager (public)
+- **Home Assistant**: Home automation platform (local network only)
 - **qBittorrent with VPN**: Torrent client with WireGuard kill switch protection (local network only)
 
 ## 🔧 Service Access
@@ -164,6 +165,7 @@ After deployment, services are available at:
 | **Immich** | `http://PI_IP:2283` | Photo & video management |
 | **Obsidian LiveSync** | `http://PI_IP:5984` | Obsidian sync server |
 | **Vaultwarden** | `http://PI_IP:11011` | Password manager |
+| **Home Assistant** | `http://PI_IP:8123` | Home automation |
 | **qBittorrent** | `http://PI_IP:8234` | Torrent client WebUI (local network only) |
 | **SSH** | `ssh -p 2312 home-pi@PI_IP` | Secure shell access |
 
@@ -300,7 +302,28 @@ sudo smbpasswd -a home-pi
 - To manually run backup: `/usr/local/bin/backup-vaultwarden.sh`
 - View backup logs: `cat /media/pi/home/log/vaultwarden-backup-rclone.log`
 
-### 8. Torrent VPN Setup
+### 8. Home Assistant Setup
+
+**Initial configuration**:
+```bash
+# Home Assistant runs on http://PI_IP:8123
+# Access the web interface to create your administrator account
+
+# Configuration is stored in: /opt/stacks/home-assistant/config
+
+# The container uses host networking for local discovery integrations.
+# D-Bus is mounted read-only for Bluetooth support.
+
+# To validate configuration before restart:
+docker exec homeassistant python -m homeassistant --script check_config --config /config
+```
+
+**Notes**:
+- Home Assistant Container does not include the Supervisor or add-ons.
+- The default timezone is `system.timezone` from `group_vars/all.yml`.
+- To expose it publicly, configure a proxy host in Nginx Proxy Manager and use HTTPS.
+
+### 9. Torrent VPN Setup
 
 **Initial configuration**:
 ```bash
@@ -386,6 +409,9 @@ ansible-playbook -i inventory.yml site.yml --tags docker,nginx
 # Monitoring services
 ansible-playbook -i inventory.yml site.yml --tags kuma,glances
 
+# Home automation
+ansible-playbook -i inventory.yml site.yml --tags home-assistant
+
 # File services
 ansible-playbook -i inventory.yml site.yml --tags samba
 
@@ -428,6 +454,7 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 | Uptime Kuma | 3001 | Local only | Monitoring dashboard |
 | Glances | 61208 | Local only | System monitoring |
 | Vaultwarden | 11011 | Local only | Password manager |
+| Home Assistant | 8123 | Local only | Home automation |
 | qBittorrent WebUI | 8234 | Local only | Torrent client management |
 | WireGuard | Dynamic (UDP) | VPN server | VPN connection (outgoing) |
 | DNS | 53/udp | Any | DNS resolution (outgoing) |
