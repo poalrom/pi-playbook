@@ -27,3 +27,7 @@ nginx_proxy_manager_admin_password: "changeme"
 
 # Yandex Disk Configuration
 yandex_disk_token: 'YOUR_YANDEX_DISK_OAUTH_TOKEN_HERE'
+
+# Google <-> HA Configuration
+google_home_assistant_service_account_id: 'my-app-123'
+google_home_assistant_service_account_token: '{service_account_json_here}'

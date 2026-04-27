@@ -149,7 +149,7 @@ ansible-playbook -i inventory.yml site.yml
 - **Immich**: Self-hosted photo and video management (public)
 - **Obsidian LiveSync**: CouchDB-based sync server for Obsidian vaults (public)
 - **Vaultwarden**: Self-hosted Bitwarden-compatible password manager (public)
-- **Home Assistant**: Home automation platform (local network only)
+- **Home Assistant**: Home automation platform (public)
 - **qBittorrent with VPN**: Torrent client with WireGuard kill switch protection (local network only)
 
 ## 🔧 Service Access
@@ -166,6 +166,7 @@ After deployment, services are available at:
 | **Obsidian LiveSync** | `http://PI_IP:5984` | Obsidian sync server |
 | **Vaultwarden** | `http://PI_IP:11011` | Password manager |
 | **Home Assistant** | `http://PI_IP:8123` | Home automation |
+| **Home Assistant (public)** | `https://has.yourdomain.com` | Home automation via reverse proxy |
 | **qBittorrent** | `http://PI_IP:8234` | Torrent client WebUI (local network only) |
 | **SSH** | `ssh -p 2312 home-pi@PI_IP` | Secure shell access |
 
@@ -307,12 +308,14 @@ sudo smbpasswd -a home-pi
 **Initial configuration**:
 ```bash
 # Home Assistant runs on http://PI_IP:8123
+# Public access is configured as https://has.yourdomain.com
 # Access the web interface to create your administrator account
 
 # Configuration is stored in: /opt/stacks/home-assistant/config
 
 # The container uses host networking for local discovery integrations.
 # D-Bus is mounted read-only for Bluetooth support.
+# configuration.yaml is rendered from the Ansible template.
 
 # To validate configuration before restart:
 docker exec homeassistant python -m homeassistant --script check_config --config /config
@@ -321,7 +324,7 @@ docker exec homeassistant python -m homeassistant --script check_config --config
 **Notes**:
 - Home Assistant Container does not include the Supervisor or add-ons.
 - The default timezone is `system.timezone` from `group_vars/all.yml`.
-- To expose it publicly, configure a proxy host in Nginx Proxy Manager and use HTTPS.
+- Nginx Proxy Manager creates `has.<ddns_domain>` and forwards it to `127.0.0.1:8123` with WebSocket support.
 
 ### 9. Torrent VPN Setup
 
@@ -412,6 +415,9 @@ ansible-playbook -i inventory.yml site.yml --tags kuma,glances
 # Home automation
 ansible-playbook -i inventory.yml site.yml --tags home-assistant
 
+# Home automation with public proxy registration
+ansible-playbook -i inventory.yml site.yml --tags home-assistant,nginx
+
 # File services
 ansible-playbook -i inventory.yml site.yml --tags samba
 
@@ -454,7 +460,7 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 | Uptime Kuma | 3001 | Local only | Monitoring dashboard |
 | Glances | 61208 | Local only | System monitoring |
 | Vaultwarden | 11011 | Local only | Password manager |
-| Home Assistant | 8123 | Local only | Home automation |
+| Home Assistant | 8123 | Local only | Direct port; public access goes through HTTPS reverse proxy |
 | qBittorrent WebUI | 8234 | Local only | Torrent client management |
 | WireGuard | Dynamic (UDP) | VPN server | VPN connection (outgoing) |
 | DNS | 53/udp | Any | DNS resolution (outgoing) |
@@ -505,4 +511,3 @@ nmap -p 80,443,2312 PI_IP
 # Disk space
 df -h
 ```
-

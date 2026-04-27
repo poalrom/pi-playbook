@@ -119,8 +119,10 @@ glances:
 # Home Assistant Home Automation
 home_assistant:
   port: 8123
+  domain: "has.{{ ddns_domain }}"
   config_path: "{{ docker.stacks_directory }}/home-assistant"
   data_path: "{{ docker.stacks_directory }}/home-assistant/config"
+  ga_service_account_id: "{{ google_home_assistant_service_account_id }}"
   timezone: "{{ system.timezone }}"
 
 # Obsidian LiveSync

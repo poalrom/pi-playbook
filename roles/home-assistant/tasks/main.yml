@@ -28,6 +28,38 @@
     mode: "0644"
   notify: Restart home-assistant
 
+- name: Create Home Assistant Google SERVICE_ACCOUNT.json
+  ansible.builtin.template:
+    src: SERVICE_ACCOUNT.json.j2
+    dest: "{{ home_assistant.data_path }}/SERVICE_ACCOUNT.json"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+  register: home_assistant_service_account_configuration
+
+- name: Create Home Assistant configuration.yaml
+  ansible.builtin.template:
+    src: configuration.yml.j2
+    dest: "{{ home_assistant.data_path }}/configuration.yaml"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+    backup: true
+  register: home_assistant_configuration
+
+- name: Ensure Home Assistant include files exist
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: "{{ home_assistant.data_path }}/{{ item.name }}"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+    force: false
+  loop:
+    - { name: "automations.yaml", content: "[]\n" }
+    - { name: "scripts.yaml", content: "{}\n" }
+    - { name: "scenes.yaml", content: "[]\n" }
+
 - name: Start Home Assistant
   community.docker.docker_compose_v2:
     project_src: "{{ home_assistant.config_path }}"
@@ -40,10 +72,32 @@
     delay: 30
     timeout: 300
 
+- name: Validate Home Assistant configuration
+  ansible.builtin.command:
+    cmd: docker exec homeassistant python -m homeassistant --script check_config --config /config
+  changed_when: false
+  when: home_assistant_configuration.changed or home_assistant_service_account_configuration.changed
+
+- name: Restart Home Assistant after configuration change
+  community.docker.docker_compose_v2:
+    project_src: "{{ home_assistant.config_path }}"
+    state: present
+    recreate: always
+  when: home_assistant_configuration.changed or home_assistant_service_account_configuration.changed
+
+- name: Wait for Home Assistant after configuration change
+  ansible.builtin.wait_for:
+    host: "{{ network.pi_ip }}"
+    port: "{{ home_assistant.port }}"
+    delay: 10
+    timeout: 180
+  when: home_assistant_configuration.changed or home_assistant_service_account_configuration.changed
+
 - name: Display Home Assistant access information
   ansible.builtin.debug:
     msg:
       - "Home Assistant is now running!"
-      - "Access it at: http://{{ network.pi_ip }}:{{ home_assistant.port }}"
+      - "Local Access: http://{{ network.pi_ip }}:{{ home_assistant.port }}"
+      - "Public Domain: https://{{ home_assistant.domain }} (will be set via Nginx Proxy Manager)"
       - "Configuration directory: {{ home_assistant.data_path }}"
       - "Create your administrator account on first visit."
