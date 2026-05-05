@@ -1,0 +1,50 @@
+---
+- name: Ensure ~/.ssh exists for admin user
+  ansible.builtin.file:
+    path: "/home/{{ users.admin_user }}/.ssh"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0700"
+
+- name: Generate ed25519 deploy key for sharepaste repo
+  community.crypto.openssh_keypair:
+    path: "{{ sharepaste.deploy_key_path }}"
+    type: ed25519
+    comment: "sharepaste-deploy@{{ inventory_hostname }}"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0600"
+  register: sharepaste_deploy_key
+
+- name: Pin github.com to the sharepaste deploy key in ~/.ssh/config
+  ansible.builtin.blockinfile:
+    path: "/home/{{ users.admin_user }}/.ssh/config"
+    create: true
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0600"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK sharepaste-deploy"
+    block: |
+      Host github.com
+        HostName github.com
+        User git
+        IdentityFile {{ sharepaste.deploy_key_path }}
+        IdentitiesOnly yes
+
+- name: Read the deploy public key
+  ansible.builtin.slurp:
+    src: "{{ sharepaste.deploy_key_path }}.pub"
+  register: sharepaste_deploy_pubkey
+
+- name: Print pubkey and instructions
+  ansible.builtin.debug:
+    msg:
+      - "Sharepaste deploy key generated. Add the following public key as a deploy key on the sharepaste repo, then re-run this playbook."
+      - "URL: https://github.com/poalrom/sharepaste/settings/keys/new"
+      - ""
+      - "{{ sharepaste_deploy_pubkey.content | b64decode }}"
+
+- name: Halt playbook until deploy key is registered on GitHub
+  ansible.builtin.fail:
+    msg: "Sharepaste GitHub auth not configured. Add the public key above to https://github.com/poalrom/sharepaste/settings/keys/new and re-run."

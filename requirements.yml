@@ -1,4 +1,5 @@
 collections:
   - name: community.general
   - name: community.docker
+  - name: community.crypto
   - name: ansible.posix

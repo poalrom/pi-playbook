@@ -142,6 +142,23 @@ vaultwarden:
     rclone_path: "vaultwarden-backups"
     log_file: "{{ log_directory }}/vaultwarden-backup-rclone.log"
 
+# Sharepaste Clipboard Sync
+sharepaste:
+  port: 8443
+  domain: "clip.{{ ddns_domain }}"
+  config_path: "{{ docker.stacks_directory }}/sharepaste"
+  data_path: "{{ docker.stacks_directory }}/sharepaste/data"
+  source_path: "{{ docker.stacks_directory }}/sharepaste/source"
+  repo_url: "git@github.com:poalrom/sharepaste.git"
+  repo_branch: "main"
+  deploy_key_path: "/home/{{ users.admin_user }}/.ssh/sharepaste_deploy"
+  # Backup Configuration
+  backup:
+    local_directory: "{{ storage.mount_point }}/backups/sharepaste"
+    retention_days: 3
+    rclone_path: "sharepaste-backups"
+    log_file: "{{ log_directory }}/sharepaste-backup-rclone.log"
+
 # Torrent VPN Configuration
 torrent_vpn:
   config_path: "{{ docker.stacks_directory }}/qbittorrent"

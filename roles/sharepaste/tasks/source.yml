@@ -1,0 +1,16 @@
+---
+- name: Clone or update sharepaste source
+  ansible.builtin.git:
+    repo: "{{ sharepaste.repo_url }}"
+    dest: "{{ sharepaste.source_path }}"
+    version: "{{ sharepaste.repo_branch }}"
+    force: true
+    update: true
+    accept_hostkey: true
+  become: true
+  become_user: "{{ users.admin_user }}"
+  register: sharepaste_source_state
+
+- name: Report source state
+  ansible.builtin.debug:
+    msg: "Sharepaste source at {{ sharepaste_source_state.after | default('unknown') }} (changed: {{ sharepaste_source_state.changed }})"

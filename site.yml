@@ -71,6 +71,9 @@
     - role: vaultwarden
       tags: ["vaultwarden"]
 
+    - role: sharepaste
+      tags: ["sharepaste"]
+
     - role: nginx-proxy-manager
       tags: ["nginx"]
 
