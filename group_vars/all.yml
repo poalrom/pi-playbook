@@ -125,6 +125,14 @@ home_assistant:
   ga_service_account_id: "{{ google_home_assistant_service_account_id }}"
   timezone: "{{ system.timezone }}"
 
+# Frigate NVR
+frigate:
+  port: 8971
+  config_path: "{{ docker.stacks_directory }}/frigate"
+  media_path: "{{ storage.mount_point }}/frigate"
+  camera_name: "calex_doorbell"
+  retention_days: 3
+
 # Obsidian LiveSync
 obsidian_livesync:
   port: 5984

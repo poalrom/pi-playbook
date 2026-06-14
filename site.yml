@@ -57,6 +57,9 @@
     - role: home-assistant
       tags: ["home-assistant"]
 
+    - role: frigate
+      tags: ["frigate"]
+
     - role: rclone
       tags: ["rclone"]
 

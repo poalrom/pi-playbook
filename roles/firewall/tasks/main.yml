@@ -127,6 +127,14 @@
     src: "{{ network.local_subnet }}"
     comment: "Home Assistant - local network only"
 
+- name: Allow Frigate from local network only
+  ufw:
+    rule: allow
+    port: "{{ frigate.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Frigate NVR - local network only"
+
 - name: Allow TinyMediaManager from local network only
   ufw:
     rule: allow

@@ -150,6 +150,7 @@ ansible-playbook -i inventory.yml site.yml
 - **Obsidian LiveSync**: CouchDB-based sync server for Obsidian vaults (public)
 - **Vaultwarden**: Self-hosted Bitwarden-compatible password manager (public)
 - **Home Assistant**: Home automation platform (public)
+- **Frigate**: NVR with 3-day continuous doorbell recording (local network only)
 - **qBittorrent with VPN**: Torrent client with WireGuard kill switch protection (local network only)
 
 ## 🔧 Service Access
@@ -167,6 +168,7 @@ After deployment, services are available at:
 | **Vaultwarden** | `http://PI_IP:11011` | Password manager |
 | **Home Assistant** | `http://PI_IP:8123` | Home automation |
 | **Home Assistant (public)** | `https://has.yourdomain.com` | Home automation via reverse proxy |
+| **Frigate** | `http://PI_IP:8971` | NVR and doorbell recordings |
 | **qBittorrent** | `http://PI_IP:8234` | Torrent client WebUI (local network only) |
 | **SSH** | `ssh -p 2312 home-pi@PI_IP` | Secure shell access |
 
@@ -326,7 +328,24 @@ docker exec homeassistant python -m homeassistant --script check_config --config
 - The default timezone is `system.timezone` from `group_vars/all.yml`.
 - Nginx Proxy Manager creates `has.<ddns_domain>` and forwards it to `127.0.0.1:8123` with WebSocket support.
 
-### 9. Torrent VPN Setup
+### 9. Frigate Setup
+
+**Initial configuration**:
+```bash
+# Frigate runs on http://PI_IP:8971
+# Doorbell recordings are stored in: /media/pi/home/frigate/recordings
+# The Calex RTSP stream is configured through frigate_doorbell_rtsp_url in vault.yml
+
+# Frigate records the doorbell stream continuously and keeps the last 3 days.
+# To change retention, update frigate.retention_days in group_vars/all.yml.
+```
+
+**Notes**:
+- Frigate uses the RTSP stream directly and does not depend on Tuya doorbell events.
+- The first visit to the Frigate UI creates or displays the initial login flow depending on the Frigate image version.
+- Continuous recording requires the RTSP stream to remain reachable from the Raspberry Pi.
+
+### 10. Torrent VPN Setup
 
 **Initial configuration**:
 ```bash
@@ -418,6 +437,9 @@ ansible-playbook -i inventory.yml site.yml --tags home-assistant
 # Home automation with public proxy registration
 ansible-playbook -i inventory.yml site.yml --tags home-assistant,nginx
 
+# Doorbell NVR
+ansible-playbook -i inventory.yml site.yml --tags frigate,firewall
+
 # File services
 ansible-playbook -i inventory.yml site.yml --tags samba
 
@@ -461,6 +483,7 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 | Glances | 61208 | Local only | System monitoring |
 | Vaultwarden | 11011 | Local only | Password manager |
 | Home Assistant | 8123 | Local only | Direct port; public access goes through HTTPS reverse proxy |
+| Frigate | 8971 | Local only | NVR and doorbell recordings |
 | qBittorrent WebUI | 8234 | Local only | Torrent client management |
 | WireGuard | Dynamic (UDP) | VPN server | VPN connection (outgoing) |
 | DNS | 53/udp | Any | DNS resolution (outgoing) |

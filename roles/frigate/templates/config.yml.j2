@@ -1,0 +1,22 @@
+mqtt:
+  enabled: false
+
+tls:
+  enabled: false
+
+record:
+  enabled: true
+  continuous:
+    days: {{ frigate.retention_days }}
+
+cameras:
+  {{ frigate.camera_name }}:
+    enabled: true
+    ffmpeg:
+      inputs:
+        - path: "{{ frigate_doorbell_rtsp_url }}"
+          roles:
+            - detect
+            - record
+    detect:
+      enabled: false
