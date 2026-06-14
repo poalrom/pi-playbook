@@ -1,0 +1,33 @@
+---
+# =============================================================================
+# Sharepaste Deployment
+# =============================================================================
+
+- name: Probe GitHub SSH auth
+  ansible.builtin.include_tasks: check-github-auth.yml
+
+- name: Ensure sharepaste config and data directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+  loop:
+    - "{{ sharepaste.config_path }}"
+    - "{{ sharepaste.data_path }}"
+    - "{{ sharepaste.source_path }}"
+
+- name: Provision GitHub deploy key (only when not already authenticated)
+  ansible.builtin.include_tasks: deploy-key.yml
+  when: not sharepaste_github_authed
+
+- name: Sync source from GitHub
+  ansible.builtin.include_tasks: source.yml
+
+- name: Build and start service
+  ansible.builtin.include_tasks: service.yml
+
+- name: Configure backup
+  ansible.builtin.include_tasks: backup.yml
+  when: yandex_disk_token != ""

@@ -1,0 +1,33 @@
+---
+- name: Render sharepaste compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ sharepaste.config_path }}/compose.yml"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+  notify: Restart sharepaste
+
+- name: Build and start sharepaste
+  community.docker.docker_compose_v2:
+    project_src: "{{ sharepaste.config_path }}"
+    state: present
+    build: always
+
+- name: Wait for sharepaste to listen on 127.0.0.1
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ sharepaste.port }}"
+    delay: 5
+    timeout: 60
+
+- name: Display sharepaste access information
+  ansible.builtin.debug:
+    msg:
+      - "Sharepaste is now running!"
+      - "Local Access: http://127.0.0.1:{{ sharepaste.port }}"
+      - "Public Domain: https://{{ sharepaste.domain }} (proxied by Nginx Proxy Manager)"
+      - "Data Directory: {{ sharepaste.data_path }}"
+      - "Source Directory: {{ sharepaste.source_path }}"
+      - "Operator CLI: docker exec sharepaste sharepaste user create <name>"
+      - "After first deploy: enable SSL for {{ sharepaste.domain }} in the NPM UI."

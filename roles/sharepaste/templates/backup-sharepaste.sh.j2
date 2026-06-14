@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Sharepaste SQLite Backup Script
+# =============================================================================
+# Backs up the SQLite database to local storage and Yandex Disk via rclone.
+# Uses sqlite3's online .backup against the bind-mounted DB file on the host
+# (the runtime container image does not include the sqlite3 CLI).
+# =============================================================================
+
+set -euo pipefail
+
+DB="{{ sharepaste.data_path }}/db.sqlite"
+LOCAL_DIR="{{ sharepaste.backup.local_directory }}"
+RCLONE_REMOTE="{{ rclone.remote }}"
+RCLONE_PATH="{{ sharepaste.backup.rclone_path }}"
+RETENTION_DAYS="{{ sharepaste.backup.retention_days }}"
+LOG="{{ sharepaste.backup.log_file }}"
+TIMESTAMP=$(date +"%Y-%m-%d-%H%M%S")
+OUT="${LOCAL_DIR}/${TIMESTAMP}-sharepaste.sqlite"
+
+mkdir -p "$LOCAL_DIR" "{{ log_directory }}"
+exec >> "$LOG" 2>&1
+
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"; }
+
+log "Starting sharepaste backup"
+
+if [ ! -f "$DB" ]; then
+  log "ERROR: DB not found at $DB"
+  exit 1
+fi
+
+log "Running sqlite3 .backup -> $OUT"
+sqlite3 "$DB" ".backup '$OUT'"
+
+log "Syncing to ${RCLONE_REMOTE}:${RCLONE_PATH}"
+rclone sync "$LOCAL_DIR" "${RCLONE_REMOTE}:${RCLONE_PATH}" \
+  --config "${HOME}/.config/rclone/rclone.conf" \
+  --size-only --check-first --ignore-checksum \
+  --log-file="$LOG" 2>&1 || log "WARNING: rclone sync failed"
+
+log "Pruning local backups older than ${RETENTION_DAYS} days"
+find "$LOCAL_DIR" -type f -name "*-sharepaste.sqlite" -mtime +"${RETENTION_DAYS}" -delete
+
+log "Sharepaste backup completed"

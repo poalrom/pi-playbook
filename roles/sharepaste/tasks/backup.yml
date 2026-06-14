@@ -1,0 +1,49 @@
+---
+- name: Install sqlite3 CLI for backup
+  ansible.builtin.apt:
+    name: sqlite3
+    state: present
+    update_cache: false
+
+- name: Create sharepaste local backup directory
+  ansible.builtin.file:
+    path: "{{ sharepaste.backup.local_directory }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create log directory
+  ansible.builtin.file:
+    path: "{{ log_directory }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Install sharepaste backup script
+  ansible.builtin.template:
+    src: backup-sharepaste.sh.j2
+    dest: /usr/local/bin/backup-sharepaste.sh
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Schedule sharepaste backup cron (daily 04:30)
+  ansible.builtin.cron:
+    name: "Sharepaste backup daily at 4:30 AM"
+    minute: "30"
+    hour: "4"
+    job: "HOME=/home/{{ users.admin_user }} PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /usr/local/bin/backup-sharepaste.sh"
+    user: "{{ users.admin_user }}"
+    state: present
+
+- name: Display sharepaste backup configuration
+  ansible.builtin.debug:
+    msg:
+      - "Sharepaste backup configured!"
+      - "Schedule: Daily at 04:30"
+      - "Local: {{ sharepaste.backup.local_directory }}"
+      - "Remote: {{ rclone.remote }}:{{ sharepaste.backup.rclone_path }}"
+      - "Retention: {{ sharepaste.backup.retention_days }} days"
+      - "Manual run: /usr/local/bin/backup-sharepaste.sh"

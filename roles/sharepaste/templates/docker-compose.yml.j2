@@ -1,0 +1,13 @@
+services:
+  sharepaste:
+    build: ./source/server
+    image: sharepaste:latest
+    container_name: sharepaste
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - DB_PATH=/var/lib/sharepaste/db.sqlite
+      - PORT={{ sharepaste.port }}
+      - HOST=127.0.0.1
+    volumes:
+      - {{ sharepaste.data_path }}:/var/lib/sharepaste

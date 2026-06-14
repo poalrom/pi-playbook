@@ -1,0 +1,21 @@
+---
+# Probe whether the admin user can already authenticate to github.com via SSH.
+# A successful auth produces stderr like: "Hi <user>! You've successfully authenticated, but GitHub does not provide shell access."
+# GitHub always closes the shell so the command exits non-zero — that is normal, do not treat it as a failure here.
+
+- name: Probe GitHub SSH auth as admin user
+  ansible.builtin.command:
+    cmd: ssh -T -o BatchMode=yes -o StrictHostKeyChecking=accept-new git@github.com
+  become: true
+  become_user: "{{ users.admin_user }}"
+  register: sharepaste_github_probe
+  changed_when: false
+  failed_when: false
+
+- name: Set GitHub auth fact
+  ansible.builtin.set_fact:
+    sharepaste_github_authed: "{{ 'successfully authenticated' in (sharepaste_github_probe.stderr | default('')) }}"
+
+- name: Report GitHub auth status
+  ansible.builtin.debug:
+    msg: "GitHub SSH auth as {{ users.admin_user }}: {{ 'OK' if sharepaste_github_authed else 'NOT AUTHENTICATED — will provision deploy key' }}"

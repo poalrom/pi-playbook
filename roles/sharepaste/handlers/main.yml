@@ -1,0 +1,7 @@
+---
+- name: Restart sharepaste
+  community.docker.docker_compose_v2:
+    project_src: "{{ sharepaste.config_path }}"
+    state: present
+    recreate: always
+    build: always
