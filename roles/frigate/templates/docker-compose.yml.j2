@@ -4,7 +4,9 @@ services:
     image: ghcr.io/blakeblackshear/frigate:stable
     restart: unless-stopped
     stop_grace_period: 30s
-    shm_size: "128mb"
+    shm_size: "256mb"
+    devices:
+      - /dev/video10:/dev/video10
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - {{ frigate.config_path }}:/config

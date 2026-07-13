@@ -4,6 +4,11 @@ mqtt:
 tls:
   enabled: false
 
+# Hardware acceleration is configured per input because the camera streams
+# use different codecs.
+ffmpeg:
+  hwaccel_args: []
+
 record:
   enabled: true
   continuous:
@@ -16,7 +21,13 @@ cameras:
       inputs:
         - path: "{{ frigate_doorbell_rtsp_url }}"
           roles:
-            - detect
             - record
+        - path: "{{ frigate_doorbell_rtsp_url | regex_replace('/videoMain$', '/videoSub') }}"
+          hwaccel_args: "-c:v h264_v4l2m2m"
+          roles:
+            - detect
     detect:
       enabled: false
+      width: 640
+      height: 360
+      fps: 5
