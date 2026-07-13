@@ -124,6 +124,12 @@ home_assistant:
   data_path: "{{ docker.stacks_directory }}/home-assistant/config"
   ga_service_account_id: "{{ google_home_assistant_service_account_id }}"
   timezone: "{{ system.timezone }}"
+  yandex_smart_home:
+    enabled: true
+    vacuum:
+      entity_id: "vacuum.s7"
+      name: "Пылесос"
+      room: "Гостиная"
 
 # Frigate NVR
 frigate:

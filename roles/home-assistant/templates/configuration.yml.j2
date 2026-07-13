@@ -21,3 +21,23 @@ google_assistant:
   project_id: {{ home_assistant.ga_service_account_id }}
   service_account: !include SERVICE_ACCOUNT.json
   report_state: true
+
+{% if home_assistant.yandex_smart_home.enabled | bool and home_assistant_yandex_smart_home_component.stat.exists %}
+yandex_smart_home:
+  filter:
+    include_entities:
+      - {{ home_assistant.yandex_smart_home.vacuum.entity_id }}
+  entity_config:
+    {{ home_assistant.yandex_smart_home.vacuum.entity_id }}:
+      name: "{{ home_assistant.yandex_smart_home.vacuum.name }}"
+      room: "{{ home_assistant.yandex_smart_home.vacuum.room }}"
+      type: vacuum_cleaner
+      modes:
+        cleanup_mode:
+          quiet: "quiet"
+          auto: "balanced"
+          turbo: "turbo"
+          max: "max"
+          eco: "off"
+          smart: "custom"
+{% endif %}

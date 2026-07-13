@@ -319,6 +319,7 @@ sudo smbpasswd -a home-pi
 # D-Bus is mounted read-only for Bluetooth support.
 # configuration.yaml is rendered from the Ansible template.
 # HACS is downloaded automatically into /config/custom_components/hacs.
+# The Yandex Smart Home YAML configuration exposes vacuum.s7.
 
 # To validate configuration before restart:
 docker exec homeassistant python -m homeassistant --script check_config --config /config
@@ -333,6 +334,12 @@ docker exec homeassistant python -m homeassistant --script check_config --config
 **Notes**:
 - Home Assistant Container does not include the Supervisor or add-ons.
 - HACS is installed as a custom integration and still requires the one-time UI setup above.
+- The Roborock S7 YAML mapping is managed through
+  `home_assistant.yandex_smart_home` in `group_vars/all.yml`.
+- Yandex Smart Home is not installed by this playbook. Install it manually,
+  rerun the Home Assistant role so it detects the component and renders the
+  YAML configuration, then add the integration in
+  **Settings → Devices & services** and select the YAML entity filter.
 - A GitHub account is required to complete HACS authentication.
 - The default timezone is `system.timezone` from `group_vars/all.yml`.
 - Nginx Proxy Manager creates `has.<ddns_domain>` and forwards it to `127.0.0.1:8123` with WebSocket support.

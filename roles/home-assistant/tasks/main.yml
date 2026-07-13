@@ -19,6 +19,11 @@
     group: "{{ users.admin_user }}"
     mode: "0755"
 
+- name: Check whether Yandex Smart Home is installed
+  ansible.builtin.stat:
+    path: "{{ home_assistant.data_path }}/custom_components/yandex_smart_home/manifest.json"
+  register: home_assistant_yandex_smart_home_component
+
 - name: Create Home Assistant docker-compose.yml
   ansible.builtin.template:
     src: docker-compose.yml.j2
@@ -123,3 +128,8 @@
       - "Configuration directory: {{ home_assistant.data_path }}"
       - "Create your administrator account on first visit."
       - "Complete HACS setup in Settings > Devices & services > Add integration > HACS."
+      - >-
+        Yandex Smart Home is
+        {{ 'installed; select the YAML entity filter.'
+        if home_assistant_yandex_smart_home_component.stat.exists
+        else 'not installed; install it manually through HACS/UI.' }}
