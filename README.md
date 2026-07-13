@@ -318,13 +318,22 @@ sudo smbpasswd -a home-pi
 # The container uses host networking for local discovery integrations.
 # D-Bus is mounted read-only for Bluetooth support.
 # configuration.yaml is rendered from the Ansible template.
+# HACS is downloaded automatically into /config/custom_components/hacs.
 
 # To validate configuration before restart:
 docker exec homeassistant python -m homeassistant --script check_config --config /config
 ```
 
+**Complete HACS setup after deployment**:
+1. Open Home Assistant and hard-refresh the browser page.
+2. Go to **Settings → Devices & services → Add integration**.
+3. Search for **HACS** and select it.
+4. Accept the HACS acknowledgements and authenticate with GitHub when prompted.
+
 **Notes**:
 - Home Assistant Container does not include the Supervisor or add-ons.
+- HACS is installed as a custom integration and still requires the one-time UI setup above.
+- A GitHub account is required to complete HACS authentication.
 - The default timezone is `system.timezone` from `group_vars/all.yml`.
 - Nginx Proxy Manager creates `has.<ddns_domain>` and forwards it to `127.0.0.1:8123` with WebSocket support.
 

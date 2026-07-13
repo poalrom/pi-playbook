@@ -72,26 +72,47 @@
     delay: 30
     timeout: 300
 
-- name: Validate Home Assistant configuration
+- name: Install HACS
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - homeassistant
+      - bash
+      - -c
+      - wget -O - https://get.hacs.xyz | bash -
+    creates: "{{ home_assistant.data_path }}/custom_components/hacs/manifest.json"
+  register: home_assistant_hacs_installation
+
+- name: Validate Home Assistant configuration after managed changes
   ansible.builtin.command:
     cmd: docker exec homeassistant python -m homeassistant --script check_config --config /config
   changed_when: false
-  when: home_assistant_configuration.changed or home_assistant_service_account_configuration.changed
+  when: >-
+    home_assistant_configuration.changed or
+    home_assistant_service_account_configuration.changed or
+    home_assistant_hacs_installation.changed
 
-- name: Restart Home Assistant after configuration change
+- name: Restart Home Assistant after configuration or HACS change
   community.docker.docker_compose_v2:
     project_src: "{{ home_assistant.config_path }}"
     state: present
     recreate: always
-  when: home_assistant_configuration.changed or home_assistant_service_account_configuration.changed
+  when: >-
+    home_assistant_configuration.changed or
+    home_assistant_service_account_configuration.changed or
+    home_assistant_hacs_installation.changed
 
-- name: Wait for Home Assistant after configuration change
+- name: Wait for Home Assistant after configuration or HACS change
   ansible.builtin.wait_for:
     host: "{{ network.pi_ip }}"
     port: "{{ home_assistant.port }}"
     delay: 10
     timeout: 180
-  when: home_assistant_configuration.changed or home_assistant_service_account_configuration.changed
+  when: >-
+    home_assistant_configuration.changed or
+    home_assistant_service_account_configuration.changed or
+    home_assistant_hacs_installation.changed
 
 - name: Display Home Assistant access information
   ansible.builtin.debug:
@@ -101,3 +122,4 @@
       - "Public Domain: https://{{ home_assistant.domain }} (will be set via Nginx Proxy Manager)"
       - "Configuration directory: {{ home_assistant.data_path }}"
       - "Create your administrator account on first visit."
+      - "Complete HACS setup in Settings > Devices & services > Add integration > HACS."
