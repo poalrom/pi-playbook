@@ -43,7 +43,7 @@
     owner: root
     group: "1883"
     mode: "0640"
-  notify: Restart home-assistant
+  register: home_assistant_mqtt_configuration
 
 - name: Calculate MQTT credentials checksum
   ansible.builtin.set_fact:
@@ -85,21 +85,48 @@
       - docker
       - run
       - --rm
+      - -i
       - --user
       - "0:0"
       - --volume
       - "{{ home_assistant.mqtt.config_path }}:/mosquitto/config"
       - "{{ home_assistant.mqtt.image }}"
-      - mosquitto_passwd
-      - -b
-      - -c
-      - /mosquitto/config/password_file
+      - sh
+      - -ec
+      - >-
+        username="$1";
+        umask 077;
+        work_directory="$(mktemp -d /tmp/mqtt-password.XXXXXX)";
+        plaintext_file="$work_directory/password_file";
+        staged_file="";
+        cleanup() {
+          rm -f "$plaintext_file";
+          rmdir "$work_directory" 2>/dev/null || true;
+          if [ -n "$staged_file" ]; then
+            rm -f "$staged_file";
+          fi;
+        };
+        trap cleanup EXIT;
+        trap 'exit 129' HUP;
+        trap 'exit 130' INT;
+        trap 'exit 143' TERM;
+        IFS= read -r password;
+        printf '%s:%s\n' "$username" "$password" >"$plaintext_file";
+        unset password;
+        mosquitto_passwd -U "$plaintext_file";
+        staged_file="$(mktemp /mosquitto/config/.password_file.XXXXXX)";
+        cp "$plaintext_file" "$staged_file";
+        chown 1883:1883 "$staged_file";
+        chmod 0600 "$staged_file";
+        mv -f "$staged_file" /mosquitto/config/password_file;
+        staged_file=""
+      - mqtt-password-file
       - "{{ mqtt_broker_username }}"
-      - "{{ mqtt_broker_password }}"
+    stdin: "{{ mqtt_broker_password }}"
+    stdin_add_newline: true
   when:
     - home_assistant_mqtt_credentials_changed
     - not ansible_check_mode
-  notify: Restart home-assistant
   no_log: true
 
 - name: Protect Mosquitto password file
@@ -121,6 +148,47 @@
     - home_assistant_mqtt_credentials_changed
     - not ansible_check_mode
   no_log: true
+
+- name: Calculate desired MQTT broker state checksum
+  ansible.builtin.set_fact:
+    home_assistant_mqtt_desired_state_checksum: >-
+      {{
+        {
+          'credentials': home_assistant_mqtt_credentials_checksum,
+          'configuration': (
+            lookup('ansible.builtin.template', 'mosquitto.conf.j2')
+            | hash('sha256')
+          )
+        }
+        | to_json
+        | hash('sha256')
+      }}
+
+- name: Check applied MQTT broker state checksum
+  ansible.builtin.stat:
+    path: "{{ home_assistant.mqtt.config_path }}/.applied.sha256"
+  register: home_assistant_mqtt_applied_state_checksum_file
+
+- name: Read applied MQTT broker state checksum
+  ansible.builtin.slurp:
+    path: "{{ home_assistant.mqtt.config_path }}/.applied.sha256"
+  register: home_assistant_mqtt_applied_state_checksum_contents
+  when: home_assistant_mqtt_applied_state_checksum_file.stat.exists
+
+- name: Determine whether MQTT broker state must be applied
+  ansible.builtin.set_fact:
+    home_assistant_mqtt_state_apply_required: >-
+      {{
+        home_assistant_mqtt_configuration.changed or
+        home_assistant_mqtt_credentials_changed or
+        not home_assistant_mqtt_applied_state_checksum_file.stat.exists or
+        (
+          home_assistant_mqtt_applied_state_checksum_contents.content
+          | default('')
+          | b64decode
+          | trim
+        ) != home_assistant_mqtt_desired_state_checksum
+      }}
 
 - name: Check whether Yandex Smart Home is installed
   ansible.builtin.stat:
@@ -176,6 +244,17 @@
 - name: Apply Home Assistant stack configuration changes
   ansible.builtin.meta: flush_handlers
 
+- name: Apply desired MQTT broker state
+  community.docker.docker_compose_v2:
+    project_src: "{{ home_assistant.config_path }}"
+    state: present
+    services:
+      - mosquitto
+    recreate: always
+  when:
+    - home_assistant_mqtt_state_apply_required
+    - not ansible_check_mode
+
 - name: Wait for Home Assistant to be ready
   ansible.builtin.wait_for:
     host: "{{ network.pi_ip }}"
@@ -189,6 +268,7 @@
     port: "{{ home_assistant.mqtt.port }}"
     delay: 2
     timeout: 60
+  when: not ansible_check_mode
 
 - name: Verify MQTT rejects anonymous clients
   ansible.builtin.command:
@@ -211,16 +291,14 @@
     home_assistant_mqtt_anonymous_test.rc == 0 or
     ('not authorised' not in (home_assistant_mqtt_anonymous_test.stderr | lower)
     and 'not authorized' not in (home_assistant_mqtt_anonymous_test.stderr | lower))
+  when: not ansible_check_mode
 
 - name: Verify authenticated MQTT publish and subscribe
   ansible.builtin.command:
     argv:
       - docker
       - exec
-      - -e
-      - "MQTT_USERNAME={{ mqtt_broker_username }}"
-      - -e
-      - "MQTT_PASSWORD={{ mqtt_broker_password }}"
+      - -i
       - mosquitto
       - timeout
       - -k
@@ -229,12 +307,15 @@
       - sh
       - -ec
       - >-
+        MQTT_USERNAME="$1";
+        IFS= read -r MQTT_PASSWORD;
         smoke_test_token="$(cat /proc/sys/kernel/random/uuid)";
         smoke_test_topic="ansible/mqtt-smoke-test/$smoke_test_token";
         smoke_test_payload="ansible-ok-$smoke_test_token";
         cleanup() {
+          printf '%s\n' "$MQTT_PASSWORD" | \
           mosquitto_pub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }} \
-          -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
+          -u "$MQTT_USERNAME" --pw-file /dev/stdin \
           -t "$smoke_test_topic" -n -r;
         };
         fallback_cleanup() {
@@ -245,18 +326,37 @@
         };
         trap 'fallback_cleanup "$?"' EXIT;
         trap 'fallback_cleanup 124' TERM;
+        printf '%s\n' "$MQTT_PASSWORD" |
         mosquitto_pub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }}
-        -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
+        -u "$MQTT_USERNAME" --pw-file /dev/stdin
         -t "$smoke_test_topic" -m "$smoke_test_payload" -r;
-        received_payload="$(mosquitto_sub -h 127.0.0.1
+        received_payload="$(printf '%s\n' "$MQTT_PASSWORD" |
+        mosquitto_sub -h 127.0.0.1
         -p {{ home_assistant.mqtt.port }}
-        -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
+        -u "$MQTT_USERNAME" --pw-file /dev/stdin
         -t "$smoke_test_topic" -C 1 -W 10)";
         test "$received_payload" = "$smoke_test_payload";
         cleanup;
+        unset MQTT_PASSWORD;
         trap - EXIT TERM
+      - mqtt-smoke-test
+      - "{{ mqtt_broker_username }}"
+    stdin: "{{ mqtt_broker_password }}"
+    stdin_add_newline: true
   changed_when: false
+  when: not ansible_check_mode
   no_log: true
+
+- name: Save applied MQTT broker state checksum
+  ansible.builtin.copy:
+    content: "{{ home_assistant_mqtt_desired_state_checksum }}\n"
+    dest: "{{ home_assistant.mqtt.config_path }}/.applied.sha256"
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - home_assistant_mqtt_state_apply_required
+    - not ansible_check_mode
 
 - name: Install HACS
   ansible.builtin.command:
