@@ -149,7 +149,7 @@ class HomeAssistantMqttConfigurationTests(unittest.TestCase):
             credentials_changed,
         )
 
-    def test_authenticated_smoke_test_is_race_free_and_bounded(self) -> None:
+    def test_authenticated_smoke_test_is_secret_safe_and_bounded(self) -> None:
         tasks = yaml.safe_load(
             (ROOT / "roles/home-assistant/tasks/main.yml").read_text(
                 encoding="utf-8"
@@ -159,21 +159,39 @@ class HomeAssistantMqttConfigurationTests(unittest.TestCase):
         smoke_test = tasks_by_name[
             "Verify authenticated MQTT publish and subscribe"
         ]
-        command = smoke_test["ansible.builtin.command"]["argv"][-1]
+        argv = smoke_test["ansible.builtin.command"]["argv"]
+        command = argv[-1]
 
-        self.assertEqual(smoke_test.get("async"), 20)
-        self.assertEqual(smoke_test.get("poll"), 1)
+        self.assertNotIn("async", smoke_test)
+        self.assertNotIn("poll", smoke_test)
         self.assertIs(smoke_test["no_log"], True)
+        self.assertEqual(
+            argv[7:13], ["timeout", "-k", "5", "15", "sh", "-ec"]
+        )
         self.assertIn(
-            'smoke_test_payload="ansible-ok-$(date +%s)-$$"', command
+            'smoke_test_token="$(cat /proc/sys/kernel/random/uuid)"', command
+        )
+        self.assertIn(
+            'smoke_test_topic="ansible/mqtt-smoke-test/$smoke_test_token"',
+            command,
+        )
+        self.assertIn(
+            'smoke_test_payload="ansible-ok-$smoke_test_token"', command
         )
         self.assertIn("cleanup()", command)
-        self.assertIn("trap cleanup EXIT", command)
+        self.assertIn('trap \'fallback_cleanup "$?"\' EXIT', command)
+        self.assertIn("trap 'fallback_cleanup 124' TERM", command)
         self.assertIn('-m "$smoke_test_payload" -r', command)
         self.assertIn("-n -r", command)
+        self.assertNotRegex(command, r"(?<!\\)\n\s+-(?:u|t)\b")
         self.assertIn('received_payload="$(mosquitto_sub', command)
         self.assertLess(
             command.index("mosquitto_pub"), command.index("mosquitto_sub")
+        )
+        self.assertIn(
+            'test "$received_payload" = "$smoke_test_payload"; '
+            "cleanup; trap - EXIT TERM",
+            command,
         )
         self.assertNotIn("subscriber_pid", command)
         self.assertNotIn("sleep 1", command)

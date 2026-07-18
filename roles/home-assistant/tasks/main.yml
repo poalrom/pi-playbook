@@ -222,29 +222,39 @@
       - -e
       - "MQTT_PASSWORD={{ mqtt_broker_password }}"
       - mosquitto
+      - timeout
+      - -k
+      - "5"
+      - "15"
       - sh
       - -ec
       - >-
-        smoke_test_payload="ansible-ok-$(date +%s)-$$";
+        smoke_test_token="$(cat /proc/sys/kernel/random/uuid)";
+        smoke_test_topic="ansible/mqtt-smoke-test/$smoke_test_token";
+        smoke_test_payload="ansible-ok-$smoke_test_token";
         cleanup() {
-          result="$?";
-          trap - EXIT;
-          mosquitto_pub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }}
-          -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
-          -t ansible/mqtt-smoke-test -n -r || true;
+          mosquitto_pub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }} \
+          -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
+          -t "$smoke_test_topic" -n -r;
+        };
+        fallback_cleanup() {
+          result="$1";
+          trap - EXIT TERM;
+          cleanup || true;
           exit "$result";
         };
-        trap cleanup EXIT;
+        trap 'fallback_cleanup "$?"' EXIT;
+        trap 'fallback_cleanup 124' TERM;
         mosquitto_pub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }}
         -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
-        -t ansible/mqtt-smoke-test -m "$smoke_test_payload" -r;
+        -t "$smoke_test_topic" -m "$smoke_test_payload" -r;
         received_payload="$(mosquitto_sub -h 127.0.0.1
         -p {{ home_assistant.mqtt.port }}
         -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
-        -t ansible/mqtt-smoke-test -C 1 -W 10)";
-        test "$received_payload" = "$smoke_test_payload"
-  async: 20
-  poll: 1
+        -t "$smoke_test_topic" -C 1 -W 10)";
+        test "$received_payload" = "$smoke_test_payload";
+        cleanup;
+        trap - EXIT TERM
   changed_when: false
   no_log: true
 
