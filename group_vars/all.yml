@@ -125,7 +125,7 @@ home_assistant:
   ga_service_account_id: "{{ google_home_assistant_service_account_id }}"
   timezone: "{{ system.timezone }}"
   mqtt:
-    image: "eclipse-mosquitto:2.1.2"
+    image: "eclipse-mosquitto:2.1.2-alpine"
     port: 1883
     config_path: "{{ docker.stacks_directory }}/home-assistant/mosquitto/config"
     data_path: "{{ docker.stacks_directory }}/home-assistant/mosquitto/data"

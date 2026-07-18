@@ -24,7 +24,7 @@ class HomeAssistantMqttConfigurationTests(unittest.TestCase):
             "data_path": "/opt/stacks/home-assistant/config",
             "timezone": "Europe/Amsterdam",
             "mqtt": {
-                "image": "eclipse-mosquitto:2.1.2",
+                "image": self.mqtt["image"],
                 "port": 1883,
                 "config_path": "/opt/stacks/home-assistant/mosquitto/config",
                 "data_path": "/opt/stacks/home-assistant/mosquitto/data",
@@ -32,7 +32,9 @@ class HomeAssistantMqttConfigurationTests(unittest.TestCase):
         }
 
     def test_group_vars_define_pinned_mqtt_defaults(self) -> None:
-        self.assertEqual(self.mqtt["image"], "eclipse-mosquitto:2.1.2")
+        self.assertEqual(
+            self.mqtt["image"], "eclipse-mosquitto:2.1.2-alpine"
+        )
         self.assertEqual(self.mqtt["port"], 1883)
         self.assertEqual(
             self.mqtt["config_path"],
@@ -67,7 +69,9 @@ class HomeAssistantMqttConfigurationTests(unittest.TestCase):
         )
         compose = yaml.safe_load(rendered)
         mosquitto = compose["services"]["mosquitto"]
-        self.assertEqual(mosquitto["image"], "eclipse-mosquitto:2.1.2")
+        self.assertEqual(
+            mosquitto["image"], "eclipse-mosquitto:2.1.2-alpine"
+        )
         self.assertEqual(mosquitto["network_mode"], "host")
         self.assertEqual(mosquitto["restart"], "unless-stopped")
         self.assertIn(
