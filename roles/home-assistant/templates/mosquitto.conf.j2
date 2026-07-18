@@ -1,0 +1,10 @@
+persistence true
+persistence_location /mosquitto/data/
+log_dest stdout
+
+global_plugin /usr/lib/mosquitto_password_file.so
+plugin_opt_password_file /mosquitto/config/password_file
+
+listener {{ home_assistant.mqtt.port }}
+protocol mqtt
+listener_allow_anonymous false

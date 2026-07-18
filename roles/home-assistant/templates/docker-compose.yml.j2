@@ -16,3 +16,15 @@ services:
       - /dev/ttyUSB0:/dev/ttyUSB0
     environment:
       TZ: {{ home_assistant.timezone }}
+
+  mosquitto:
+    container_name: mosquitto
+    image: {{ home_assistant.mqtt.image }}
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - {{ home_assistant.mqtt.config_path }}/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - {{ home_assistant.mqtt.config_path }}/password_file:/mosquitto/config/password_file:ro
+      - {{ home_assistant.mqtt.data_path }}:/mosquitto/data
+    environment:
+      TZ: {{ home_assistant.timezone }}

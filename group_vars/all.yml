@@ -124,6 +124,11 @@ home_assistant:
   data_path: "{{ docker.stacks_directory }}/home-assistant/config"
   ga_service_account_id: "{{ google_home_assistant_service_account_id }}"
   timezone: "{{ system.timezone }}"
+  mqtt:
+    image: "eclipse-mosquitto:2.1.2"
+    port: 1883
+    config_path: "{{ docker.stacks_directory }}/home-assistant/mosquitto/config"
+    data_path: "{{ docker.stacks_directory }}/home-assistant/mosquitto/data"
   yandex_smart_home:
     enabled: true
     vacuum:

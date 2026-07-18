@@ -10,6 +10,10 @@ myaddr_api_key: "YOUR_MYADDR_API_KEY_HERE"
 ddns_domain: "YOUR_DDNS_DOMAIN_HERE.myaddr.tools"
 
 # Service Passwords
+# MQTT Broker Credentials
+mqtt_broker_username: "homeassistant"
+mqtt_broker_password: "CHANGE_ME"
+
 samba_password: "YOUR_SAMBA_PASSWORD_HERE"
 
 # Immich Passwords
