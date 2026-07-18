@@ -94,6 +94,20 @@ class HomeAssistantMqttConfigurationTests(unittest.TestCase):
         self.assertIn('mqtt_broker_username: "homeassistant"', vault_template)
         self.assertIn('mqtt_broker_password: "CHANGE_ME"', vault_template)
 
+    def test_readme_documents_mqtt_setup(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        required_fragments = (
+            "mqtt_broker_username",
+            "mqtt_broker_password",
+            "127.0.0.1",
+            "1883",
+            "Settings → Devices & services → Add integration",
+            "MQTT_PASSWORD",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, readme)
+
     def test_firewall_allows_mqtt_from_lan_only(self) -> None:
         firewall = (ROOT / "roles/firewall/tasks/main.yml").read_text(
             encoding="utf-8"

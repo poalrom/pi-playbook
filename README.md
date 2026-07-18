@@ -325,6 +325,30 @@ sudo smbpasswd -a home-pi
 docker exec homeassistant python -m homeassistant --script check_config --config /config
 ```
 
+**MQTT broker setup**:
+
+1. Set `mqtt_broker_username` and a strong `mqtt_broker_password` in
+   `vault.yml`, then rerun the Home Assistant and firewall roles.
+2. In Home Assistant, go to **Settings → Devices & services → Add integration**,
+   select **MQTT**, and enter:
+   - Broker: `127.0.0.1`
+   - Port: `1883`
+   - Username and password: the MQTT values from `vault.yml`
+3. Configure LAN devices with the Raspberry Pi address on port `1883` and the
+   same credentials. UFW permits this endpoint only from `network.local_subnet`.
+
+To verify an authenticated publish without storing the password in shell
+history:
+
+```bash
+export MQTT_USERNAME='homeassistant'
+read -rsp 'MQTT password: ' MQTT_PASSWORD; echo
+export MQTT_PASSWORD
+docker exec -e MQTT_USERNAME -e MQTT_PASSWORD mosquitto sh -c \
+  'mosquitto_pub -h 127.0.0.1 -p 1883 -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" -t manual/mqtt-test -m ok'
+unset MQTT_USERNAME MQTT_PASSWORD
+```
+
 **Complete HACS setup after deployment**:
 1. Open Home Assistant and hard-refresh the browser page.
 2. Go to **Settings → Devices & services → Add integration**.
