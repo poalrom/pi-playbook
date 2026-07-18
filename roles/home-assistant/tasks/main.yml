@@ -19,6 +19,103 @@
     group: "{{ users.admin_user }}"
     mode: "0755"
 
+- name: Create Mosquitto directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ home_assistant.mqtt.config_path }}"
+      owner: root
+      group: "1883"
+      mode: "0750"
+    - path: "{{ home_assistant.mqtt.data_path }}"
+      owner: "1883"
+      group: "1883"
+      mode: "0750"
+
+- name: Create Mosquitto configuration
+  ansible.builtin.template:
+    src: mosquitto.conf.j2
+    dest: "{{ home_assistant.mqtt.config_path }}/mosquitto.conf"
+    owner: root
+    group: "1883"
+    mode: "0640"
+  notify: Restart home-assistant
+
+- name: Calculate MQTT credentials checksum
+  ansible.builtin.set_fact:
+    home_assistant_mqtt_credentials_checksum: >-
+      {{ {'username': mqtt_broker_username, 'password': mqtt_broker_password}
+      | to_json | hash('sha256') }}
+  no_log: true
+
+- name: Check MQTT credentials checksum
+  ansible.builtin.stat:
+    path: "{{ home_assistant.mqtt.config_path }}/.credentials.sha256"
+  register: home_assistant_mqtt_credentials_checksum_file
+
+- name: Read MQTT credentials checksum
+  ansible.builtin.slurp:
+    path: "{{ home_assistant.mqtt.config_path }}/.credentials.sha256"
+  register: home_assistant_mqtt_credentials_checksum_contents
+  when: home_assistant_mqtt_credentials_checksum_file.stat.exists
+  no_log: true
+
+- name: Determine whether MQTT credentials changed
+  ansible.builtin.set_fact:
+    home_assistant_mqtt_credentials_changed: >-
+      {{ not home_assistant_mqtt_credentials_checksum_file.stat.exists or
+      (home_assistant_mqtt_credentials_checksum_contents.content
+      | default('') | b64decode | trim)
+      != home_assistant_mqtt_credentials_checksum }}
+  no_log: true
+
+- name: Generate Mosquitto password file
+  ansible.builtin.command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - --user
+      - "0:0"
+      - --volume
+      - "{{ home_assistant.mqtt.config_path }}:/mosquitto/config"
+      - "{{ home_assistant.mqtt.image }}"
+      - mosquitto_passwd
+      - -b
+      - -c
+      - /mosquitto/config/password_file
+      - "{{ mqtt_broker_username }}"
+      - "{{ mqtt_broker_password }}"
+  when:
+    - home_assistant_mqtt_credentials_changed
+    - not ansible_check_mode
+  notify: Restart home-assistant
+  no_log: true
+
+- name: Protect Mosquitto password file
+  ansible.builtin.file:
+    path: "{{ home_assistant.mqtt.config_path }}/password_file"
+    owner: "1883"
+    group: "1883"
+    mode: "0600"
+  when: not ansible_check_mode
+
+- name: Save MQTT credentials checksum
+  ansible.builtin.copy:
+    content: "{{ home_assistant_mqtt_credentials_checksum }}\n"
+    dest: "{{ home_assistant.mqtt.config_path }}/.credentials.sha256"
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - home_assistant_mqtt_credentials_changed
+    - not ansible_check_mode
+  no_log: true
+
 - name: Check whether Yandex Smart Home is installed
   ansible.builtin.stat:
     path: "{{ home_assistant.data_path }}/custom_components/yandex_smart_home/manifest.json"
@@ -70,12 +167,72 @@
     project_src: "{{ home_assistant.config_path }}"
     state: present
 
+- name: Apply Home Assistant stack configuration changes
+  ansible.builtin.meta: flush_handlers
+
 - name: Wait for Home Assistant to be ready
   ansible.builtin.wait_for:
     host: "{{ network.pi_ip }}"
     port: "{{ home_assistant.port }}"
     delay: 30
     timeout: 300
+
+- name: Wait for MQTT broker to be ready
+  ansible.builtin.wait_for:
+    host: "{{ network.pi_ip }}"
+    port: "{{ home_assistant.mqtt.port }}"
+    delay: 2
+    timeout: 60
+
+- name: Verify MQTT rejects anonymous clients
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - mosquitto
+      - mosquitto_pub
+      - -h
+      - 127.0.0.1
+      - -p
+      - "{{ home_assistant.mqtt.port | string }}"
+      - -t
+      - ansible/mqtt-anonymous-test
+      - -m
+      - rejected
+  register: home_assistant_mqtt_anonymous_test
+  changed_when: false
+  failed_when: >-
+    home_assistant_mqtt_anonymous_test.rc == 0 or
+    ('not authorised' not in (home_assistant_mqtt_anonymous_test.stderr | lower)
+    and 'not authorized' not in (home_assistant_mqtt_anonymous_test.stderr | lower))
+
+- name: Verify authenticated MQTT publish and subscribe
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - -e
+      - "MQTT_USERNAME={{ mqtt_broker_username }}"
+      - -e
+      - "MQTT_PASSWORD={{ mqtt_broker_password }}"
+      - mosquitto
+      - sh
+      - -ec
+      - >-
+        output_file="$(mktemp)";
+        trap 'rm -f "$output_file"' EXIT;
+        mosquitto_sub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }}
+        -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
+        -t ansible/mqtt-smoke-test -C 1 -W 10 >"$output_file" &
+        subscriber_pid="$!";
+        sleep 1;
+        mosquitto_pub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }}
+        -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
+        -t ansible/mqtt-smoke-test -m ansible-ok;
+        wait "$subscriber_pid";
+        test "$(cat "$output_file")" = ansible-ok
+  changed_when: false
+  no_log: true
 
 - name: Install HACS
   ansible.builtin.command:
@@ -126,6 +283,8 @@
       - "Local Access: http://{{ network.pi_ip }}:{{ home_assistant.port }}"
       - "Public Domain: https://{{ home_assistant.domain }} (will be set via Nginx Proxy Manager)"
       - "Configuration directory: {{ home_assistant.data_path }}"
+      - "MQTT broker: {{ network.pi_ip }}:{{ home_assistant.mqtt.port }} (LAN only)"
+      - "Add MQTT in Home Assistant with broker 127.0.0.1 and the Vault credentials."
       - "Create your administrator account on first visit."
       - "Complete HACS setup in Settings > Devices & services > Add integration > HACS."
       - >-

@@ -98,6 +98,27 @@ class HomeAssistantMqttConfigurationTests(unittest.TestCase):
         self.assertIn('src: "{{ network.local_subnet }}"', firewall)
         self.assertIn('comment: "MQTT broker - local network only"', firewall)
 
+    def test_role_orchestrates_and_verifies_mqtt(self) -> None:
+        tasks = (ROOT / "roles/home-assistant/tasks/main.yml").read_text(
+            encoding="utf-8"
+        )
+        required_fragments = (
+            "Create Mosquitto directories",
+            "Create Mosquitto configuration",
+            "Calculate MQTT credentials checksum",
+            "Generate Mosquitto password file",
+            "Protect Mosquitto password file",
+            "Save MQTT credentials checksum",
+            "Apply Home Assistant stack configuration changes",
+            "Wait for MQTT broker to be ready",
+            "Verify MQTT rejects anonymous clients",
+            "Verify authenticated MQTT publish and subscribe",
+            "no_log: true",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, tasks)
+
 
 if __name__ == "__main__":
     unittest.main()
