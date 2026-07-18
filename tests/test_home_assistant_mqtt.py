@@ -119,6 +119,65 @@ class HomeAssistantMqttConfigurationTests(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, tasks)
 
+    def test_role_recovers_a_missing_mosquitto_password_file(self) -> None:
+        tasks = yaml.safe_load(
+            (ROOT / "roles/home-assistant/tasks/main.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        tasks_by_name = {task["name"]: task for task in tasks}
+        task_name = "Check Mosquitto password file"
+
+        self.assertIn(task_name, tasks_by_name)
+        password_file_check = tasks_by_name[task_name]
+        self.assertEqual(
+            password_file_check["ansible.builtin.stat"]["path"],
+            "{{ home_assistant.mqtt.config_path }}/password_file",
+        )
+        self.assertEqual(
+            password_file_check["register"],
+            "home_assistant_mqtt_password_file",
+        )
+
+        credentials_changed = tasks_by_name[
+            "Determine whether MQTT credentials changed"
+        ]["ansible.builtin.set_fact"][
+            "home_assistant_mqtt_credentials_changed"
+        ]
+        self.assertIn(
+            "not home_assistant_mqtt_password_file.stat.exists",
+            credentials_changed,
+        )
+
+    def test_authenticated_smoke_test_is_race_free_and_bounded(self) -> None:
+        tasks = yaml.safe_load(
+            (ROOT / "roles/home-assistant/tasks/main.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        tasks_by_name = {task["name"]: task for task in tasks}
+        smoke_test = tasks_by_name[
+            "Verify authenticated MQTT publish and subscribe"
+        ]
+        command = smoke_test["ansible.builtin.command"]["argv"][-1]
+
+        self.assertEqual(smoke_test.get("async"), 20)
+        self.assertEqual(smoke_test.get("poll"), 1)
+        self.assertIs(smoke_test["no_log"], True)
+        self.assertIn(
+            'smoke_test_payload="ansible-ok-$(date +%s)-$$"', command
+        )
+        self.assertIn("cleanup()", command)
+        self.assertIn("trap cleanup EXIT", command)
+        self.assertIn('-m "$smoke_test_payload" -r', command)
+        self.assertIn("-n -r", command)
+        self.assertIn('received_payload="$(mosquitto_sub', command)
+        self.assertLess(
+            command.index("mosquitto_pub"), command.index("mosquitto_sub")
+        )
+        self.assertNotIn("subscriber_pid", command)
+        self.assertNotIn("sleep 1", command)
+
 
 if __name__ == "__main__":
     unittest.main()

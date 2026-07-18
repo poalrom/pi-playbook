@@ -57,6 +57,11 @@
     path: "{{ home_assistant.mqtt.config_path }}/.credentials.sha256"
   register: home_assistant_mqtt_credentials_checksum_file
 
+- name: Check Mosquitto password file
+  ansible.builtin.stat:
+    path: "{{ home_assistant.mqtt.config_path }}/password_file"
+  register: home_assistant_mqtt_password_file
+
 - name: Read MQTT credentials checksum
   ansible.builtin.slurp:
     path: "{{ home_assistant.mqtt.config_path }}/.credentials.sha256"
@@ -67,7 +72,8 @@
 - name: Determine whether MQTT credentials changed
   ansible.builtin.set_fact:
     home_assistant_mqtt_credentials_changed: >-
-      {{ not home_assistant_mqtt_credentials_checksum_file.stat.exists or
+      {{ not home_assistant_mqtt_password_file.stat.exists or
+      not home_assistant_mqtt_credentials_checksum_file.stat.exists or
       (home_assistant_mqtt_credentials_checksum_contents.content
       | default('') | b64decode | trim)
       != home_assistant_mqtt_credentials_checksum }}
@@ -219,18 +225,26 @@
       - sh
       - -ec
       - >-
-        output_file="$(mktemp)";
-        trap 'rm -f "$output_file"' EXIT;
-        mosquitto_sub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }}
-        -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
-        -t ansible/mqtt-smoke-test -C 1 -W 10 >"$output_file" &
-        subscriber_pid="$!";
-        sleep 1;
+        smoke_test_payload="ansible-ok-$(date +%s)-$$";
+        cleanup() {
+          result="$?";
+          trap - EXIT;
+          mosquitto_pub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }}
+          -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
+          -t ansible/mqtt-smoke-test -n -r || true;
+          exit "$result";
+        };
+        trap cleanup EXIT;
         mosquitto_pub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }}
         -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
-        -t ansible/mqtt-smoke-test -m ansible-ok;
-        wait "$subscriber_pid";
-        test "$(cat "$output_file")" = ansible-ok
+        -t ansible/mqtt-smoke-test -m "$smoke_test_payload" -r;
+        received_payload="$(mosquitto_sub -h 127.0.0.1
+        -p {{ home_assistant.mqtt.port }}
+        -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
+        -t ansible/mqtt-smoke-test -C 1 -W 10)";
+        test "$received_payload" = "$smoke_test_payload"
+  async: 20
+  poll: 1
   changed_when: false
   no_log: true
 
