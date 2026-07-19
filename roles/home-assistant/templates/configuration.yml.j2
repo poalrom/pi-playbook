@@ -23,11 +23,73 @@ google_assistant:
   report_state: true
 
 {% if home_assistant.yandex_smart_home.enabled | bool and home_assistant_yandex_smart_home_component.stat.exists %}
+mqtt:
+  - binary_sensor:
+      name: "Living Room PC Agent"
+      unique_id: living_room_pc_agent
+      default_entity_id: {{ home_assistant.yandex_smart_home.pc.state_entity_id }}
+      state_topic: "{{ home_assistant.yandex_smart_home.pc.availability_topic }}"
+      payload_on: "online"
+      payload_off: "offline"
+      device_class: connectivity
+
+timer:
+  pc_starting:
+    duration: "{{ home_assistant.yandex_smart_home.pc.startup_duration }}"
+
+template:
+  - switch:
+      - name: "PC"
+        unique_id: living_room_pc
+        icon: mdi:desktop-tower-monitor
+        state: >-
+          {{ "{{ is_state('" ~ home_assistant.yandex_smart_home.pc.state_entity_id ~ "', 'on') or is_state('timer.pc_starting', 'active') }}" }}
+        availability: >-
+          {{ "{{ states('" ~ home_assistant.yandex_smart_home.pc.state_entity_id ~ "') not in ['unknown', 'unavailable'] }}" }}
+        turn_on:
+          - condition: state
+            entity_id: {{ home_assistant.yandex_smart_home.pc.state_entity_id }}
+            state: "off"
+          - condition: state
+            entity_id: timer.pc_starting
+            state: "idle"
+          - condition: template
+            value_template: >-
+              {{ "{{ states('" ~ home_assistant.yandex_smart_home.pc.startup_button_entity_id ~ "') != 'unavailable' }}" }}
+          - action: button.press
+            target:
+              entity_id: {{ home_assistant.yandex_smart_home.pc.startup_button_entity_id }}
+          - action: timer.start
+            target:
+              entity_id: timer.pc_starting
+        turn_off:
+          - condition: template
+            value_template: >-
+              {{ "{{ states('" ~ home_assistant.yandex_smart_home.pc.state_entity_id ~ "') not in ['unknown', 'unavailable'] }}" }}
+          - action: timer.cancel
+            target:
+              entity_id: timer.pc_starting
+          - condition: state
+            entity_id: {{ home_assistant.yandex_smart_home.pc.state_entity_id }}
+            state: "on"
+          - condition: template
+            value_template: >-
+              {{ "{{ states('" ~ home_assistant.yandex_smart_home.pc.shutdown_button_entity_id ~ "') != 'unavailable' }}" }}
+          - action: button.press
+            target:
+              entity_id: {{ home_assistant.yandex_smart_home.pc.shutdown_button_entity_id }}
+
 yandex_smart_home:
   filter:
     include_entities:
+      - {{ home_assistant.yandex_smart_home.pc.entity_id }}
       - {{ home_assistant.yandex_smart_home.vacuum.entity_id }}
   entity_config:
+    {{ home_assistant.yandex_smart_home.pc.entity_id }}:
+      name: "{{ home_assistant.yandex_smart_home.pc.name }}"
+      room: "{{ home_assistant.yandex_smart_home.pc.room }}"
+      type: media_device
+      split_on_off: true
     {{ home_assistant.yandex_smart_home.vacuum.entity_id }}:
       name: "{{ home_assistant.yandex_smart_home.vacuum.name }}"
       room: "{{ home_assistant.yandex_smart_home.vacuum.room }}"
