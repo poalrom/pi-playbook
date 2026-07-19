@@ -94,7 +94,8 @@
       - sh
       - -ec
       - >-
-        username="$1";
+        IFS= read -r username;
+        IFS= read -r password;
         umask 077;
         work_directory="$(mktemp -d /tmp/mqtt-password.XXXXXX)";
         plaintext_file="$work_directory/password_file";
@@ -110,7 +111,6 @@
         trap 'exit 129' HUP;
         trap 'exit 130' INT;
         trap 'exit 143' TERM;
-        IFS= read -r password;
         printf '%s:%s\n' "$username" "$password" >"$plaintext_file";
         unset password;
         mosquitto_passwd -U "$plaintext_file";
@@ -121,8 +121,7 @@
         mv -f "$staged_file" /mosquitto/config/password_file;
         staged_file=""
       - mqtt-password-file
-      - "{{ mqtt_broker_username }}"
-    stdin: "{{ mqtt_broker_password }}"
+    stdin: "{{ mqtt_broker_username }}\n{{ mqtt_broker_password }}"
     stdin_add_newline: true
   when:
     - home_assistant_mqtt_credentials_changed
@@ -202,7 +201,6 @@
     owner: "{{ users.admin_user }}"
     group: "{{ users.admin_user }}"
     mode: "0644"
-  notify: Restart home-assistant
 
 - name: Create Home Assistant Google SERVICE_ACCOUNT.json
   ansible.builtin.template:
@@ -307,15 +305,18 @@
       - sh
       - -ec
       - >-
-        MQTT_USERNAME="$1";
+        IFS= read -r MQTT_USERNAME;
         IFS= read -r MQTT_PASSWORD;
+        mqtt_options() {
+          printf '%s %s\n%s %s\n' -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD";
+        };
         smoke_test_token="$(cat /proc/sys/kernel/random/uuid)";
         smoke_test_topic="ansible/mqtt-smoke-test/$smoke_test_token";
         smoke_test_payload="ansible-ok-$smoke_test_token";
         cleanup() {
-          printf '%s\n' "$MQTT_PASSWORD" | \
-          mosquitto_pub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }} \
-          -u "$MQTT_USERNAME" --pw-file /dev/stdin \
+          mqtt_options | \
+          mosquitto_pub -o /dev/stdin -h 127.0.0.1 \
+          -p {{ home_assistant.mqtt.port }} \
           -t "$smoke_test_topic" -n -r;
         };
         fallback_cleanup() {
@@ -326,22 +327,20 @@
         };
         trap 'fallback_cleanup "$?"' EXIT;
         trap 'fallback_cleanup 124' TERM;
-        printf '%s\n' "$MQTT_PASSWORD" |
-        mosquitto_pub -h 127.0.0.1 -p {{ home_assistant.mqtt.port }}
-        -u "$MQTT_USERNAME" --pw-file /dev/stdin
-        -t "$smoke_test_topic" -m "$smoke_test_payload" -r;
-        received_payload="$(printf '%s\n' "$MQTT_PASSWORD" |
-        mosquitto_sub -h 127.0.0.1
+        mqtt_options |
+        mosquitto_pub -o /dev/stdin -h 127.0.0.1
         -p {{ home_assistant.mqtt.port }}
-        -u "$MQTT_USERNAME" --pw-file /dev/stdin
+        -t "$smoke_test_topic" -m "$smoke_test_payload" -r;
+        received_payload="$(mqtt_options |
+        mosquitto_sub -o /dev/stdin -h 127.0.0.1
+        -p {{ home_assistant.mqtt.port }}
         -t "$smoke_test_topic" -C 1 -W 10)";
         test "$received_payload" = "$smoke_test_payload";
         cleanup;
         unset MQTT_PASSWORD;
         trap - EXIT TERM
       - mqtt-smoke-test
-      - "{{ mqtt_broker_username }}"
-    stdin: "{{ mqtt_broker_password }}"
+    stdin: "{{ mqtt_broker_username }}\n{{ mqtt_broker_password }}"
     stdin_add_newline: true
   changed_when: false
   when: not ansible_check_mode

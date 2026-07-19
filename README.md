@@ -343,9 +343,9 @@ history:
 ```bash
 read -rp 'MQTT username: ' MQTT_USERNAME
 read -rsp 'MQTT password: ' MQTT_PASSWORD; echo
-export MQTT_USERNAME MQTT_PASSWORD
-docker exec -e MQTT_USERNAME -e MQTT_PASSWORD mosquitto sh -c \
-  'mosquitto_pub -h 127.0.0.1 -p 1883 -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" -t manual/mqtt-test -m ok'
+printf '%s %s\n%s %s\n' -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" | \
+  docker exec -i mosquitto mosquitto_pub -o /dev/stdin \
+  -h 127.0.0.1 -p 1883 -t manual/mqtt-test -m ok
 unset MQTT_USERNAME MQTT_PASSWORD
 ```
 
