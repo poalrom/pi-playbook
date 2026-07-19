@@ -136,7 +136,7 @@ home_assistant:
       availability_topic: "homeassistant/sensor/TV-satellite/availability"
       startup_button_entity_id: "button.media_pc_power_switch_pc_power_button"
       shutdown_button_entity_id: "button.tv_satellite_shutdown"
-      startup_duration: "00:00:15"
+      startup_duration: "00:01:00"
       name: "Компьютер"
       room: "Гостиная"
     vacuum:
