@@ -319,7 +319,7 @@ sudo smbpasswd -a home-pi
 # D-Bus is mounted read-only for Bluetooth support.
 # configuration.yaml is rendered from the Ansible template.
 # HACS is downloaded automatically into /config/custom_components/hacs.
-# The Yandex Smart Home YAML configuration exposes vacuum.s7.
+# The Yandex Smart Home YAML configuration exposes switch.pc and vacuum.s7.
 
 # To validate configuration before restart:
 docker exec homeassistant python -m homeassistant --script check_config --config /config
@@ -360,6 +360,16 @@ unset MQTT_USERNAME MQTT_PASSWORD
 - HACS is installed as a custom integration and still requires the one-time UI setup above.
 - The Roborock S7 YAML mapping is managed through
   `home_assistant.yandex_smart_home` in `group_vars/all.yml`.
+- PC control uses HASS.Agent Satellite MQTT availability as its state source.
+  Configure the Satellite service to publish to the broker and create its
+  graceful shutdown command before deploying this configuration.
+- The managed PC inputs under `home_assistant.yandex_smart_home.pc` are:
+  - Availability topic: `homeassistant/sensor/TV-satellite/availability`
+  - Startup button: `button.media_pc_power_switch_pc_power_button`
+  - Shutdown button: `button.tv_satellite_shutdown`
+- `switch.pc` reports on while HASS.Agent Satellite is online or during its
+  15-second startup window. Satellite, network, and MQTT failures are therefore
+  indistinguishable from a powered-off PC.
 - Yandex Smart Home is not installed by this playbook. Install it manually,
   rerun the Home Assistant role so it detects the component and renders the
   YAML configuration, then add the integration in
