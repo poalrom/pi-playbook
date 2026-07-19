@@ -27,7 +27,7 @@ mqtt:
   - binary_sensor:
       name: "Living Room PC Agent"
       unique_id: living_room_pc_agent
-      default_entity_id: {{ home_assistant.yandex_smart_home.pc.state_entity_id }}
+      default_entity_id: binary_sensor.living_room_pc_agent
       state_topic: "{{ home_assistant.yandex_smart_home.pc.availability_topic }}"
       payload_on: "online"
       payload_off: "offline"
@@ -43,12 +43,12 @@ template:
         unique_id: living_room_pc
         icon: mdi:desktop-tower-monitor
         state: >-
-          {{ "{{ is_state('" ~ home_assistant.yandex_smart_home.pc.state_entity_id ~ "', 'on') or is_state('timer.pc_starting', 'active') }}" }}
+          {{ "{{ is_state('binary_sensor.living_room_pc_agent', 'on') or is_state('timer.pc_starting', 'active') }}" }}
         availability: >-
-          {{ "{{ states('" ~ home_assistant.yandex_smart_home.pc.state_entity_id ~ "') not in ['unknown', 'unavailable'] }}" }}
+          {{ "{{ states('binary_sensor.living_room_pc_agent') not in ['unknown', 'unavailable'] }}" }}
         turn_on:
           - condition: state
-            entity_id: {{ home_assistant.yandex_smart_home.pc.state_entity_id }}
+            entity_id: binary_sensor.living_room_pc_agent
             state: "off"
           - condition: state
             entity_id: timer.pc_starting
@@ -65,12 +65,12 @@ template:
         turn_off:
           - condition: template
             value_template: >-
-              {{ "{{ states('" ~ home_assistant.yandex_smart_home.pc.state_entity_id ~ "') not in ['unknown', 'unavailable'] }}" }}
+              {{ "{{ states('binary_sensor.living_room_pc_agent') not in ['unknown', 'unavailable'] }}" }}
           - action: timer.cancel
             target:
               entity_id: timer.pc_starting
           - condition: state
-            entity_id: {{ home_assistant.yandex_smart_home.pc.state_entity_id }}
+            entity_id: binary_sensor.living_room_pc_agent
             state: "on"
           - condition: template
             value_template: >-

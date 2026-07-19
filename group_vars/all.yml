@@ -134,7 +134,6 @@ home_assistant:
     pc:
       entity_id: "switch.pc"
       availability_topic: "homeassistant/sensor/TV-satellite/availability"
-      state_entity_id: "binary_sensor.living_room_pc_agent"
       startup_button_entity_id: "button.media_pc_power_switch_pc_power_button"
       shutdown_button_entity_id: "button.tv_satellite_shutdown"
       startup_duration: "00:00:15"
