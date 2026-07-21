@@ -13,6 +13,7 @@ services:
     environment:
       - VPN_SERVICE_PROVIDER=custom
       - VPN_TYPE=wireguard
+      - STORAGE_FILEPATH=
       - FIREWALL_VPN_INPUT_PORTS={{ torrent_vpn.qbittorrent_webui_port }},{{ torrent_vpn.torrent_port }}
     volumes:
       - {{ torrent_vpn.config_path }}/{{ torrent_vpn.vpn_config_name }}.conf:/gluetun/wireguard/wg0.conf:ro
@@ -39,4 +40,3 @@ services:
       - {{ torrent_vpn.qbittorrent_config_path }}:/config
       - {{ torrent_vpn.download_path }}:/downloads
       - {{ torrent_vpn.incomplete_path }}:/incomplete
-
