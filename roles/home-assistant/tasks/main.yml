@@ -33,6 +33,7 @@
 - name: Check OpenThread backbone interface
   ansible.builtin.stat:
     path: "/sys/class/net/{{ home_assistant.thread.backbone_interface }}"
+    follow: true
   register: home_assistant_thread_backbone
 
 - name: Validate OpenThread host resources

@@ -112,6 +112,7 @@ class HomeAssistantOtbrTests(unittest.TestCase):
             interface["ansible.builtin.stat"]["path"],
             "/sys/class/net/{{ home_assistant.thread.backbone_interface }}",
         )
+        self.assertIs(interface["ansible.builtin.stat"]["follow"], True)
         conditions = validation["ansible.builtin.assert"]["that"]
         self.assertIn("home_assistant_thread_device.stat.ischr", conditions)
         self.assertIn("home_assistant_thread_tun.stat.ischr", conditions)
