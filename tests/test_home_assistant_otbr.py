@@ -181,6 +181,15 @@ class HomeAssistantOtbrTests(unittest.TestCase):
         )
         self.assertIs(interface["changed_when"], False)
 
+    def test_readme_documents_otbr_setup_and_diagnostics(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("**OpenThread Border Router setup**", readme)
+        self.assertIn("http://127.0.0.1:18081", readme)
+        self.assertIn("home_assistant.thread.device", readme)
+        self.assertIn("docker logs otbr", readme)
+        self.assertIn("docker exec otbr ot-ctl state", readme)
+        self.assertIn("Send credentials to phone", readme)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -349,6 +349,36 @@ printf '%s %s\n%s %s\n' -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" | \
 unset MQTT_USERNAME MQTT_PASSWORD
 ```
 
+**OpenThread Border Router setup**:
+
+The Home Assistant role runs the official OpenThread Border Router container
+with the Thread-flashed Connect ZBT-2. Before deployment, confirm the stable
+serial path in `home_assistant.thread.device` and keep the adapter connected to
+the Raspberry Pi through its USB extension cable.
+
+After running the role:
+
+1. Go to **Settings → Devices & services → Add integration**.
+2. Select **OpenThread Border Router** and enter `http://127.0.0.1:18081`.
+3. Open the **Thread** integration and create/select the new Home Assistant
+   Thread network as the preferred network.
+4. In the Home Assistant companion app, open the Thread integration and select
+   **Send credentials to phone** before adding Matter-over-Thread devices.
+
+The REST API and optional OTBR web interface listen only on the Raspberry Pi's
+loopback interface, on ports `18081` and `18080`. They are not exposed through
+UFW or the reverse proxy.
+
+Useful diagnostics on the Raspberry Pi:
+
+```bash
+docker logs otbr
+docker exec otbr ot-ctl state
+docker exec otbr ot-ctl dataset active
+ip link show wpan0
+curl http://127.0.0.1:18081/node
+```
+
 **Complete HACS setup after deployment**:
 1. Open Home Assistant and hard-refresh the browser page.
 2. Go to **Settings → Devices & services → Add integration**.
