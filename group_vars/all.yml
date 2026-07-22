@@ -142,6 +142,10 @@ home_assistant:
     web:
       listen_address: "127.0.0.1"
       port: 18080
+  matter:
+    image: "ghcr.io/matter-js/python-matter-server:stable"
+    data_path: "{{ home_assistant.config_path }}/matter"
+    port: 5581
   yandex_smart_home:
     enabled: true
     pc:

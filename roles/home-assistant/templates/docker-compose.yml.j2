@@ -51,3 +51,20 @@ services:
       OT_REST_LISTEN_PORT: {{ home_assistant.thread.rest_api.port }}
       OT_WEB_LISTEN_ADDR: {{ home_assistant.thread.web.listen_address }}
       OT_WEB_LISTEN_PORT: {{ home_assistant.thread.web.port }}
+
+  matter-server:
+    container_name: matter-server
+    image: {{ home_assistant.matter.image }}
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - {{ home_assistant.matter.data_path }}:/data
+    command:
+      - --storage-path
+      - /data
+      - --paa-root-cert-dir
+      - /data/credentials
+      - --port
+      - "{{ home_assistant.matter.port }}"

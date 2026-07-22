@@ -19,6 +19,34 @@
     group: "{{ users.admin_user }}"
     mode: "0755"
 
+- name: Validate Matter Server configuration
+  ansible.builtin.assert:
+    that:
+      - home_assistant.matter.image | string | length > 0
+      - home_assistant.matter.data_path is string
+      - home_assistant.matter.data_path.startswith('/')
+      - home_assistant.matter.port | int >= 1024
+      - home_assistant.matter.port | int <= 65535
+      - >-
+        (home_assistant.matter.port | int) not in
+        [
+          home_assistant.port | int,
+          home_assistant.mqtt.port | int,
+          home_assistant.thread.rest_api.port | int,
+          home_assistant.thread.web.port | int
+        ]
+    fail_msg: >-
+      Matter Server requires a nonempty image, an absolute data path, and a
+      unique non-privileged TCP port.
+
+- name: Create Matter Server data directory
+  ansible.builtin.file:
+    path: "{{ home_assistant.matter.data_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Check OpenThread RCP device
   ansible.builtin.stat:
     path: "{{ home_assistant.thread.device }}"
@@ -341,6 +369,14 @@
   changed_when: false
   when: not ansible_check_mode
 
+- name: Wait for Matter Server WebSocket API
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ home_assistant.matter.port }}"
+    delay: 2
+    timeout: 120
+  when: not ansible_check_mode
+
 - name: Wait for Home Assistant to be ready
   ansible.builtin.wait_for:
     host: "{{ network.pi_ip }}"
@@ -502,6 +538,11 @@
       - >-
         Add the OpenThread Border Router integration with that URL, then use
         the Thread integration to create and prefer the new Home Assistant network.
+      - >-
+        Matter Server WebSocket API:
+        ws://127.0.0.1:{{ home_assistant.matter.port }}/ws
+      - >-
+        Add the Matter integration as a custom-container connection with that URL.
       - "Create your administrator account on first visit."
       - "Complete HACS setup in Settings > Devices & services > Add integration > HACS."
       - >-
