@@ -35,6 +35,12 @@ class HomeAssistantOtbrTests(unittest.TestCase):
         cls.compose = yaml.safe_load(
             template.render(home_assistant=render_vars)
         )
+        cls.tasks = yaml.safe_load(
+            (ROOT / "roles/home-assistant/tasks/main.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        cls.tasks_by_name = {task["name"]: task for task in cls.tasks}
 
     def test_thread_configuration_uses_zbt2_and_non_default_ports(self):
         self.assertEqual(
@@ -90,6 +96,90 @@ class HomeAssistantOtbrTests(unittest.TestCase):
         self.assertEqual(environment["OT_REST_LISTEN_PORT"], 18081)
         self.assertEqual(environment["OT_WEB_LISTEN_ADDR"], "127.0.0.1")
         self.assertEqual(environment["OT_WEB_LISTEN_PORT"], 18080)
+
+    def test_role_validates_otbr_host_resources(self):
+        device = self.tasks_by_name["Check OpenThread RCP device"]
+        tun = self.tasks_by_name["Check OpenThread TUN device"]
+        interface = self.tasks_by_name["Check OpenThread backbone interface"]
+        validation = self.tasks_by_name["Validate OpenThread host resources"]
+        self.assertEqual(
+            device["ansible.builtin.stat"]["path"],
+            "{{ home_assistant.thread.device }}",
+        )
+        self.assertIs(device["ansible.builtin.stat"]["follow"], True)
+        self.assertEqual(tun["ansible.builtin.stat"]["path"], "/dev/net/tun")
+        self.assertEqual(
+            interface["ansible.builtin.stat"]["path"],
+            "/sys/class/net/{{ home_assistant.thread.backbone_interface }}",
+        )
+        conditions = validation["ansible.builtin.assert"]["that"]
+        self.assertIn("home_assistant_thread_device.stat.ischr", conditions)
+        self.assertIn("home_assistant_thread_tun.stat.ischr", conditions)
+        self.assertIn("home_assistant_thread_backbone.stat.isdir", conditions)
+
+    def test_role_prepares_otbr_storage_and_routing(self):
+        directory = self.tasks_by_name[
+            "Create OpenThread Border Router data directory"
+        ]
+        sysctl = self.tasks_by_name["Configure OpenThread routing sysctls"]
+        self.assertEqual(
+            directory["ansible.builtin.file"]["path"],
+            "{{ home_assistant.thread.data_path }}",
+        )
+        self.assertEqual(
+            sysctl["ansible.posix.sysctl"]["sysctl_file"],
+            "/etc/sysctl.d/60-otbr.conf",
+        )
+        self.assertIs(sysctl["ansible.posix.sysctl"]["sysctl_set"], True)
+        self.assertIs(sysctl["ansible.posix.sysctl"]["reload"], True)
+        self.assertEqual(
+            sysctl["loop"],
+            [
+                {"name": "net.ipv4.ip_forward", "value": "1"},
+                {"name": "net.ipv6.conf.all.forwarding", "value": "1"},
+                {
+                    "name": (
+                        "net.ipv6.conf."
+                        "{{ home_assistant.thread.backbone_interface }}"
+                        ".accept_ra"
+                    ),
+                    "value": "2",
+                },
+                {
+                    "name": (
+                        "net.ipv6.conf."
+                        "{{ home_assistant.thread.backbone_interface }}"
+                        ".accept_ra_rt_info_max_plen"
+                    ),
+                    "value": "64",
+                },
+            ],
+        )
+
+    def test_role_verifies_otbr_rest_api_and_thread_interface(self):
+        wait = self.tasks_by_name[
+            "Wait for OpenThread Border Router REST API"
+        ]
+        api = self.tasks_by_name["Verify OpenThread Border Router REST API"]
+        interface = self.tasks_by_name["Verify OpenThread interface"]
+        self.assertEqual(
+            wait["ansible.builtin.wait_for"]["host"],
+            "{{ home_assistant.thread.rest_api.listen_address }}",
+        )
+        self.assertEqual(
+            wait["ansible.builtin.wait_for"]["port"],
+            "{{ home_assistant.thread.rest_api.port }}",
+        )
+        self.assertEqual(
+            api["ansible.builtin.uri"]["url"],
+            "http://{{ home_assistant.thread.rest_api.listen_address }}:"
+            "{{ home_assistant.thread.rest_api.port }}/node",
+        )
+        self.assertEqual(
+            interface["ansible.builtin.command"]["argv"],
+            ["ip", "link", "show", "dev", "wpan0"],
+        )
+        self.assertIs(interface["changed_when"], False)
 
 
 if __name__ == "__main__":
