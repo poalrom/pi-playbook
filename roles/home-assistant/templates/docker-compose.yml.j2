@@ -28,3 +28,26 @@ services:
       - {{ home_assistant.mqtt.data_path }}:/mosquitto/data
     environment:
       TZ: {{ home_assistant.timezone }}
+
+  otbr:
+    container_name: otbr
+    image: {{ home_assistant.thread.image }}
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+      - {{ home_assistant.thread.device }}:/dev/ttyZBT2
+    volumes:
+      - {{ home_assistant.thread.data_path }}:/data
+    environment:
+      TZ: {{ home_assistant.timezone }}
+      OT_RCP_DEVICE: >-
+        spinel+hdlc+uart:///dev/ttyZBT2?uart-baudrate={{ home_assistant.thread.baudrate }}{% if home_assistant.thread.hardware_flow_control %}&uart-flow-control{% else %}&uart-init-deassert{% endif %}
+      OT_INFRA_IF: {{ home_assistant.thread.backbone_interface }}
+      OT_THREAD_IF: wpan0
+      OT_REST_LISTEN_ADDR: {{ home_assistant.thread.rest_api.listen_address }}
+      OT_REST_LISTEN_PORT: {{ home_assistant.thread.rest_api.port }}
+      OT_WEB_LISTEN_ADDR: {{ home_assistant.thread.web.listen_address }}
+      OT_WEB_LISTEN_PORT: {{ home_assistant.thread.web.port }}

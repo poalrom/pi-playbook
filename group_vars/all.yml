@@ -129,6 +129,19 @@ home_assistant:
     port: 1883
     config_path: "{{ docker.stacks_directory }}/home-assistant/mosquitto/config"
     data_path: "{{ docker.stacks_directory }}/home-assistant/mosquitto/data"
+  thread:
+    image: "openthread/border-router:latest"
+    device: "/dev/serial/by-id/usb-Nabu_Casa_ZBT-2_E072A1D74B14-if00"
+    data_path: "{{ home_assistant.config_path }}/otbr"
+    backbone_interface: "eth0"
+    baudrate: 460800
+    hardware_flow_control: true
+    rest_api:
+      listen_address: "127.0.0.1"
+      port: 18081
+    web:
+      listen_address: "127.0.0.1"
+      port: 18080
   yandex_smart_home:
     enabled: true
     pc:
