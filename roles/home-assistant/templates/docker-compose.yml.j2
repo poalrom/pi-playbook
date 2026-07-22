@@ -44,7 +44,7 @@ services:
     environment:
       TZ: {{ home_assistant.timezone }}
       OT_RCP_DEVICE: >-
-        spinel+hdlc+uart:///dev/ttyZBT2?uart-baudrate={{ home_assistant.thread.baudrate }}{% if home_assistant.thread.hardware_flow_control %}&uart-flow-control{% else %}&uart-init-deassert{% endif %}
+        spinel+hdlc+uart:///dev/ttyZBT2?uart-baudrate={{ home_assistant.thread.baudrate }}{{ '&uart-flow-control' if home_assistant.thread.hardware_flow_control else '&uart-init-deassert' }}
       OT_INFRA_IF: {{ home_assistant.thread.backbone_interface }}
       OT_THREAD_IF: wpan0
       OT_REST_LISTEN_ADDR: {{ home_assistant.thread.rest_api.listen_address }}

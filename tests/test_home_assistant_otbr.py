@@ -16,7 +16,10 @@ class HomeAssistantOtbrTests(unittest.TestCase):
             (ROOT / "group_vars/all.yml").read_text(encoding="utf-8")
         )
         cls.thread = cls.group_vars["home_assistant"]["thread"]
-        template = Environment(undefined=StrictUndefined).from_string(
+        template = Environment(
+            undefined=StrictUndefined,
+            trim_blocks=True,
+        ).from_string(
             (
                 ROOT
                 / "roles/home-assistant/templates/docker-compose.yml.j2"
