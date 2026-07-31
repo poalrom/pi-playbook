@@ -19,6 +19,89 @@
     group: "{{ users.admin_user }}"
     mode: "0755"
 
+- name: Validate Matter Server configuration
+  ansible.builtin.assert:
+    that:
+      - home_assistant.matter.image | string | length > 0
+      - home_assistant.matter.data_path is string
+      - home_assistant.matter.data_path.startswith('/')
+      - home_assistant.matter.port | int >= 1024
+      - home_assistant.matter.port | int <= 65535
+      - >-
+        (home_assistant.matter.port | int) not in
+        [
+          home_assistant.port | int,
+          home_assistant.mqtt.port | int,
+          home_assistant.thread.rest_api.port | int,
+          home_assistant.thread.web.port | int
+        ]
+    fail_msg: >-
+      Matter Server requires a nonempty image, an absolute data path, and a
+      unique non-privileged TCP port.
+
+- name: Create Matter Server data directory
+  ansible.builtin.file:
+    path: "{{ home_assistant.matter.data_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Check OpenThread RCP device
+  ansible.builtin.stat:
+    path: "{{ home_assistant.thread.device }}"
+    follow: true
+  register: home_assistant_thread_device
+
+- name: Check OpenThread TUN device
+  ansible.builtin.stat:
+    path: /dev/net/tun
+  register: home_assistant_thread_tun
+
+- name: Check OpenThread backbone interface
+  ansible.builtin.stat:
+    path: "/sys/class/net/{{ home_assistant.thread.backbone_interface }}"
+    follow: true
+  register: home_assistant_thread_backbone
+
+- name: Validate OpenThread host resources
+  ansible.builtin.assert:
+    that:
+      - home_assistant_thread_device.stat.exists
+      - home_assistant_thread_device.stat.ischr
+      - home_assistant_thread_tun.stat.exists
+      - home_assistant_thread_tun.stat.ischr
+      - home_assistant_thread_backbone.stat.exists
+      - home_assistant_thread_backbone.stat.isdir
+    fail_msg: >-
+      OpenThread requires character devices {{ home_assistant.thread.device }}
+      and /dev/net/tun plus backbone interface
+      {{ home_assistant.thread.backbone_interface }}.
+
+- name: Create OpenThread Border Router data directory
+  ansible.builtin.file:
+    path: "{{ home_assistant.thread.data_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure OpenThread routing sysctls
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/60-otbr.conf
+    sysctl_set: true
+    reload: true
+  loop:
+    - { name: "net.ipv4.ip_forward", value: "1" }
+    - { name: "net.ipv6.conf.all.forwarding", value: "1" }
+    - name: "net.ipv6.conf.{{ home_assistant.thread.backbone_interface }}.accept_ra"
+      value: "2"
+    - name: "net.ipv6.conf.{{ home_assistant.thread.backbone_interface }}.accept_ra_rt_info_max_plen"
+      value: "64"
+
 - name: Create Mosquitto directories
   ansible.builtin.file:
     path: "{{ item.path }}"
@@ -253,6 +336,47 @@
     - home_assistant_mqtt_state_apply_required
     - not ansible_check_mode
 
+- name: Wait for OpenThread Border Router REST API
+  ansible.builtin.wait_for:
+    host: "{{ home_assistant.thread.rest_api.listen_address }}"
+    port: "{{ home_assistant.thread.rest_api.port }}"
+    delay: 2
+    timeout: 120
+  when: not ansible_check_mode
+
+- name: Verify OpenThread Border Router REST API
+  ansible.builtin.uri:
+    url: >-
+      http://{{ home_assistant.thread.rest_api.listen_address }}:{{ home_assistant.thread.rest_api.port }}/node
+    method: GET
+    status_code: 200
+    return_content: true
+  register: home_assistant_thread_rest_api
+  changed_when: false
+  failed_when: >-
+    home_assistant_thread_rest_api.status != 200 or
+    home_assistant_thread_rest_api.json is not mapping
+  when: not ansible_check_mode
+
+- name: Verify OpenThread interface
+  ansible.builtin.command:
+    argv:
+      - ip
+      - link
+      - show
+      - dev
+      - wpan0
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Wait for Matter Server WebSocket API
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ home_assistant.matter.port }}"
+    delay: 2
+    timeout: 120
+  when: not ansible_check_mode
+
 - name: Wait for Home Assistant to be ready
   ansible.builtin.wait_for:
     host: "{{ network.pi_ip }}"
@@ -408,6 +532,17 @@
       - "Configuration directory: {{ home_assistant.data_path }}"
       - "MQTT broker: {{ network.pi_ip }}:{{ home_assistant.mqtt.port }} (LAN only)"
       - "Add MQTT in Home Assistant with broker 127.0.0.1 and the Vault credentials."
+      - >-
+        OpenThread REST API:
+        http://{{ home_assistant.thread.rest_api.listen_address }}:{{ home_assistant.thread.rest_api.port }}
+      - >-
+        Add the OpenThread Border Router integration with that URL, then use
+        the Thread integration to create and prefer the new Home Assistant network.
+      - >-
+        Matter Server WebSocket API:
+        ws://127.0.0.1:{{ home_assistant.matter.port }}/ws
+      - >-
+        Add the Matter integration as a custom-container connection with that URL.
       - "Create your administrator account on first visit."
       - "Complete HACS setup in Settings > Devices & services > Add integration > HACS."
       - >-

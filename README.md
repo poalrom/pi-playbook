@@ -349,6 +349,77 @@ printf '%s %s\n%s %s\n' -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" | \
 unset MQTT_USERNAME MQTT_PASSWORD
 ```
 
+**OpenThread Border Router setup**:
+
+The Home Assistant role runs the official OpenThread Border Router container
+with the Thread-flashed Connect ZBT-2. Before deployment, confirm the stable
+serial path in `home_assistant.thread.device` and keep the adapter connected to
+the Raspberry Pi through its USB extension cable.
+
+After running the role:
+
+1. Go to **Settings → Devices & services → Add integration**.
+2. Select **OpenThread Border Router** and enter `http://127.0.0.1:18081`.
+3. Open the **Thread** integration and create/select the new Home Assistant
+   Thread network as the preferred network.
+4. In the Home Assistant companion app, open the Thread integration and select
+   **Send credentials to phone** before adding Matter-over-Thread devices.
+
+The REST API and optional OTBR web interface listen only on the Raspberry Pi's
+loopback interface, on ports `18081` and `18080`. They are not exposed through
+UFW or the reverse proxy.
+
+Useful diagnostics on the Raspberry Pi:
+
+```bash
+docker logs otbr
+docker exec otbr ot-ctl state
+docker exec otbr ot-ctl dataset active
+ip link show wpan0
+curl http://127.0.0.1:18081/node
+```
+
+**Matter-over-Thread setup**:
+
+The Home Assistant role also runs the standalone Open Home Foundation Matter
+Server. Its controller fabric is stored persistently under the Home Assistant
+stack directory. Home Assistant Container cannot install the supported Matter
+Server app, so complete this one-time integration setup after deployment:
+
+1. Go to **Settings → Devices & services → Add integration** and select
+   **Matter**.
+2. Disable the option to install or use the Home Assistant Matter Server app.
+3. Enter `ws://127.0.0.1:5581/ws` as the custom Matter Server URL.
+4. In **Settings → Devices & services → Thread → Configure**, confirm that the
+   intended Thread network has credentials, shows the OpenThread border router,
+   and is preferred.
+5. Synchronize those credentials to the phone used for commissioning:
+   - Android: **Settings → Companion app → Troubleshooting → Sync Thread
+     credentials**.
+   - iPhone: open the Thread integration and select **Send credentials to
+     phone**.
+6. In the Home Assistant Companion app, go to **Settings → Matter → Add
+   device**, choose **No, it's new**, and scan the device's Matter QR code.
+
+The active OTBR dataset at the time this configuration was deployed is
+`Google-EBC4`. Decide whether to keep that network or replace it before pairing
+Matter-over-Thread devices. Changing the Thread dataset afterward can require
+resetting and recommissioning devices.
+
+Useful Matter Server diagnostics on the Raspberry Pi:
+
+```bash
+docker ps --filter name=matter-server
+docker logs matter-server
+curl http://127.0.0.1:5581/
+```
+
+The Matter Server port is managed by `home_assistant.matter.port` and is not
+opened through UFW or the reverse proxy. Home Assistant OS with the official
+Matter Server app is the supported Home Assistant Matter installation; this
+standalone Docker deployment is self-managed and follows the upstream
+[Matter Server Docker guidance](https://github.com/matter-js/python-matter-server/blob/main/docs/docker.md).
+
 **Complete HACS setup after deployment**:
 1. Open Home Assistant and hard-refresh the browser page.
 2. Go to **Settings → Devices & services → Add integration**.
