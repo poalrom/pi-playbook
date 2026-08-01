@@ -177,6 +177,7 @@ obsidian_livesync:
 
 # Vaultwarden Password Manager
 vaultwarden:
+  version: "1.37.1"
   port: 11011
   domain: "vwdn.{{ ddns_domain }}"
   config_path: "{{ docker.stacks_directory }}/vaultwarden"

@@ -291,6 +291,21 @@ sudo smbpasswd -a home-pi
 # In the client, set the server URL to: https://vwdn.yourdomain.com
 ```
 
+**Version management**:
+- The server image is pinned in `group_vars/all.yml` (`vaultwarden.version`), currently `1.37.1`.
+- To upgrade: bump `vaultwarden.version` to the desired tag from
+  [vaultwarden releases](https://github.com/dani-garcia/vaultwarden/releases),
+  then run `ansible-playbook -i inventory.yml site.yml --tags vaultwarden`.
+  The role pulls the pinned tag and recreates the container.
+- Take a snapshot first — stop the container so SQLite closes cleanly, then archive the data
+  directory outside `/media/pi/home/backups/vaultwarden` (that path is pruned after 3 days):
+  ```bash
+  cd /opt/stacks/vaultwarden && docker compose stop
+  tar -czf /media/pi/home/backups/pre-<version>-vaultwarden-data.tar.gz -C /opt/stacks/vaultwarden data
+  ```
+- To roll back, restore that archive over `/opt/stacks/vaultwarden/data` and set
+  `vaultwarden.version` back to the previous tag.
+
 **Security Notes**:
 - Signups are disabled by default (SIGNUPS_ALLOWED=false)
 - Invitations are disabled by default (INVITATIONS_ALLOWED=false)
