@@ -1,0 +1,26 @@
+---
+# =============================================================================
+# Persistent systemd Journal
+# =============================================================================
+# Without this the journal lives only in /run/log (RAM), so every reboot discards
+# the logs that would explain why the previous boot ended. That makes an unclean
+# shutdown impossible to diagnose after the fact. Persist the journal to disk with
+# a hard size cap so it cannot fill the SD card.
+# =============================================================================
+
+- name: Create journald configuration directory
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure persistent journald storage
+  ansible.builtin.template:
+    src: journald-persistent.conf.j2
+    dest: /etc/systemd/journald.conf.d/99-persistent.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: "restart journald"

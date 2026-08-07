@@ -14,3 +14,12 @@
 - name: Include system updates tasks
   ansible.builtin.include_tasks: system_updates.yml
   tags: ["updates"]
+
+# `apply` is required for the tag to reach the tasks inside a dynamic include;
+# without it `--tags journald` selects only the include statement and runs nothing.
+- name: Include persistent journal tasks
+  ansible.builtin.include_tasks:
+    file: journald.yml
+    apply:
+      tags: ["journald"]
+  tags: ["journald"]

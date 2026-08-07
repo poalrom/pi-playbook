@@ -62,6 +62,11 @@ security:
 system:
   timezone: "Europe/Amsterdam"
   locale: "en_US.UTF-8"
+  # Persist the systemd journal so an unclean shutdown can be diagnosed after the
+  # fact; capped well below the free space on the root filesystem.
+  journal:
+    storage: "persistent"
+    max_use: "200M"
 
 # =============================================================================
 # Role-Specific Configuration Parameters

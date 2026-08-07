@@ -1,0 +1,6 @@
+{{ ansible_managed | comment }}
+# Retain the journal across reboots so the tail of an unclean shutdown survives,
+# bounded so it cannot exhaust the root filesystem.
+[Journal]
+Storage={{ system.journal.storage }}
+SystemMaxUse={{ system.journal.max_use }}

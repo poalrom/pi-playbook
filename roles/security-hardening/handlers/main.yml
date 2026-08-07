@@ -15,6 +15,19 @@
     state: restarted
   listen: "restart fail2ban"
 
+- name: Restart journald
+  ansible.builtin.systemd:
+    name: systemd-journald
+    state: restarted
+  listen: "restart journald"
+
+# Switching Storage to persistent does not move the live journal off /run by itself;
+# without an explicit flush the change only takes effect at the next boot.
+- name: Flush journal to persistent storage
+  ansible.builtin.command: journalctl --flush
+  changed_when: true
+  listen: "restart journald"
+
 - name: Reboot if needed
   ansible.builtin.reboot:
     reboot_timeout: 30
