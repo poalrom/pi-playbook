@@ -1,0 +1,20 @@
+---
+# The checkout is also the compose project directory, so the git working tree
+# holds untracked runtime state: data/, node_modules/ and the rendered
+# env.production. `force` resets tracked files only, so that state survives.
+
+- name: Clone or update snuglog source
+  ansible.builtin.git:
+    repo: "{{ snuglog.repo_url }}"
+    dest: "{{ snuglog.source_path }}"
+    version: "{{ snuglog.repo_branch }}"
+    force: true
+    update: true
+    accept_hostkey: true
+  become: true
+  become_user: "{{ users.admin_user }}"
+  register: snuglog_source_state
+
+- name: Report source state
+  ansible.builtin.debug:
+    msg: "Snuglog source at {{ snuglog_source_state.after | default('unknown') }} (changed: {{ snuglog_source_state.changed }})"

@@ -77,6 +77,10 @@
     - role: sharepaste
       tags: ["sharepaste"]
 
+    - role: snuglog
+      when: snuglog_db_password != ""
+      tags: ["snuglog"]
+
     - role: nginx-proxy-manager
       tags: ["nginx"]
 

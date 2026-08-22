@@ -1,0 +1,9 @@
+---
+- name: Restart snuglog
+  community.docker.docker_compose_v2:
+    project_src: "{{ snuglog.source_path }}"
+    files:
+      - "{{ snuglog.compose_file }}"
+    state: present
+    recreate: always
+    build: always

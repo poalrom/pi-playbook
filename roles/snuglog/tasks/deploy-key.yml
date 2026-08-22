@@ -1,0 +1,64 @@
+---
+# Fallback only. It runs when nothing on the host can authenticate to GitHub.
+#
+# On the current Pi it never runs: ~/.ssh/config pins github.com to the personal
+# account key id_ed25519, which authenticates as the repository owner and so
+# reaches both the public sharepaste repository and this private one.
+#
+# A GitHub deploy key is scoped to one repository, not to an account, so a
+# sharepaste deploy key would NOT satisfy snuglog.
+#
+# Caveat: ssh keeps the first IdentityFile it finds for a Host, and the
+# sharepaste role already writes a "Host github.com" block. If that block ever
+# stops authenticating, remove it before relying on the block below, otherwise
+# the key generated here is parsed but never offered.
+
+- name: Ensure ~/.ssh exists for admin user
+  ansible.builtin.file:
+    path: "/home/{{ users.admin_user }}/.ssh"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0700"
+
+- name: Generate ed25519 deploy key for snuglog repo
+  community.crypto.openssh_keypair:
+    path: "{{ snuglog.deploy_key_path }}"
+    type: ed25519
+    comment: "snuglog-deploy@{{ inventory_hostname }}"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0600"
+  register: snuglog_deploy_key
+
+- name: Pin github.com to the snuglog deploy key in ~/.ssh/config
+  ansible.builtin.blockinfile:
+    path: "/home/{{ users.admin_user }}/.ssh/config"
+    create: true
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0600"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK snuglog-deploy"
+    block: |
+      Host github.com
+        HostName github.com
+        User git
+        IdentityFile {{ snuglog.deploy_key_path }}
+        IdentitiesOnly yes
+
+- name: Read the deploy public key
+  ansible.builtin.slurp:
+    src: "{{ snuglog.deploy_key_path }}.pub"
+  register: snuglog_deploy_pubkey
+
+- name: Print pubkey and instructions
+  ansible.builtin.debug:
+    msg:
+      - "Snuglog deploy key generated. Add the following public key as a deploy key on the snuglog repo, then re-run this playbook."
+      - "URL: https://github.com/poalrom/snuglog/settings/keys/new"
+      - ""
+      - "{{ snuglog_deploy_pubkey.content | b64decode }}"
+
+- name: Halt playbook until deploy key is registered on GitHub
+  ansible.builtin.fail:
+    msg: "Snuglog GitHub auth not configured. Add the public key above to https://github.com/poalrom/snuglog/settings/keys/new and re-run."

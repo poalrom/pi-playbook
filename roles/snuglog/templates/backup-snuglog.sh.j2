@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Snuglog Production Database Backup Script
+# =============================================================================
+# Dumps the production postgres cluster to local storage and syncs it to Yandex
+# Disk via rclone. Watchlist posters and frames are not backed up: the database
+# stores only their paths and the files are re-fetched from TMDB on demand.
+# =============================================================================
+
+set -euo pipefail
+
+DB_CONTAINER="{{ snuglog.db.container }}"
+DB_USERNAME="{{ snuglog.db.user }}"
+LOCAL_DIR="{{ snuglog.backup.local_directory }}"
+RCLONE_REMOTE="{{ rclone.remote }}"
+RCLONE_PATH="{{ snuglog.backup.rclone_path }}"
+RETENTION_DAYS="{{ snuglog.backup.retention_days }}"
+LOG="{{ snuglog.backup.log_file }}"
+TIMESTAMP=$(date +"%Y-%m-%d-%H%M%S")
+OUT="${LOCAL_DIR}/${TIMESTAMP}-snuglog-database.sql.gz"
+
+mkdir -p "$LOCAL_DIR" "{{ log_directory }}"
+exec >> "$LOG" 2>&1
+
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"; }
+
+log "Starting snuglog backup"
+
+if ! docker inspect -f '{{ '{{' }}.State.Running{{ '}}' }}' "$DB_CONTAINER" 2>/dev/null | grep -q true; then
+  log "ERROR: container $DB_CONTAINER is not running"
+  exit 1
+fi
+
+log "Running pg_dumpall -> $OUT"
+docker exec "$DB_CONTAINER" pg_dumpall --clean --if-exists --username="$DB_USERNAME" \
+  | nice -n 10 gzip > "$OUT"
+
+log "Syncing to ${RCLONE_REMOTE}:${RCLONE_PATH}"
+rclone sync "$LOCAL_DIR" "${RCLONE_REMOTE}:${RCLONE_PATH}" \
+  --config "${HOME}/.config/rclone/rclone.conf" \
+  --size-only --check-first --ignore-checksum \
+  --log-file="$LOG" 2>&1 || log "WARNING: rclone sync failed"
+
+log "Pruning local backups older than ${RETENTION_DAYS} days"
+find "$LOCAL_DIR" -type f -name "*-snuglog-database.sql.gz" -mtime +"${RETENTION_DAYS}" -delete
+
+log "Snuglog backup completed"

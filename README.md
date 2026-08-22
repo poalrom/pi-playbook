@@ -152,6 +152,8 @@ ansible-playbook -i inventory.yml site.yml
 - **Home Assistant**: Home automation platform (public)
 - **Frigate**: NVR with 3-day continuous doorbell recording (local network only)
 - **qBittorrent with VPN**: Torrent client with WireGuard kill switch protection (local network only)
+- **Sharepaste**: Self-hosted clipboard sync, built from the `poalrom/sharepaste` repository (public)
+- **Snuglog**: Self-hosted household organiser, built from the private `poalrom/snuglog` repository (public)
 
 ## 🔧 Service Access
 
@@ -170,6 +172,9 @@ After deployment, services are available at:
 | **Home Assistant (public)** | `https://has.yourdomain.com` | Home automation via reverse proxy |
 | **Frigate** | `http://PI_IP:8971` | NVR and doorbell recordings |
 | **qBittorrent** | `http://PI_IP:8234` | Torrent client WebUI (local network only) |
+| **Sharepaste** | `https://clip.yourdomain.com` | Clipboard sync via reverse proxy |
+| **Snuglog** | `http://PI_IP:8133` | Household organiser |
+| **Snuglog (public)** | `https://snuglog.yourdomain.com` | Household organiser via reverse proxy |
 | **SSH** | `ssh -p 2312 home-pi@PI_IP` | Secure shell access |
 
 ## 🔄 Post-Deployment Steps
@@ -550,6 +555,68 @@ ping -I myvpn 8.8.8.8
 sudo ufw status numbered | grep -E "(WireGuard|DNS|8234)"
 ```
 
+### 11. Sharepaste Setup
+
+```bash
+# Sharepaste runs on http://127.0.0.1:8443 and is public at
+# https://clip.yourdomain.com through Nginx Proxy Manager.
+
+# The role clones https://github.com/poalrom/sharepaste over SSH and builds
+# the server image from source/server.
+
+# The first run prints a deploy key and stops. Add the printed key at
+# https://github.com/poalrom/sharepaste/settings/keys/new and re-run.
+
+# Create an operator account:
+docker exec sharepaste sharepaste user create <name>
+
+# Data: /opt/stacks/sharepaste/data (SQLite, backed up daily at 04:30)
+```
+
+### 12. Snuglog Setup
+
+**Only the production environment is managed by this playbook.**
+
+```bash
+# Snuglog production runs on http://PI_IP:8133 and is public at
+# https://snuglog.yourdomain.com through Nginx Proxy Manager.
+
+# The role clones the private repository https://github.com/poalrom/snuglog
+# over SSH into /opt/stacks/snuglog. That checkout is also the Docker Compose
+# project directory, because docker-compose.production.yml builds from "." and
+# binds "./data/production/postgres".
+
+# The first run prints a deploy key and stops. Add the printed key at
+# https://github.com/poalrom/snuglog/settings/keys/new and re-run.
+
+# env.production is rendered from group_vars/all.yml and vault.yml. Never edit
+# it on the host: the next playbook run overwrites it.
+
+# Postgres cluster: /opt/stacks/snuglog/data/production/postgres (SD card;
+# the external disk is exFAT and cannot hold postgres file ownership).
+# Posters and frames: /media/pi/home/snuglog/production/watchlist-images
+# (external disk; the compose bind uses create_host_path: false, so the role
+# creates this directory before the app starts).
+
+# Database backup: daily at 05:00, pg_dumpall to
+# /media/pi/home/backups/snuglog and rclone to yandex-disk:snuglog-backups.
+# Watchlist images are not backed up; they are re-fetched from TMDB.
+```
+
+**Staging is not managed**:
+
+```bash
+# The staging containers share the "snuglog" Compose project name, so every
+# compose call in this role names docker-compose.production.yml explicitly and
+# never removes orphans.
+
+# They are stopped and hold no data directory: production was migrated off the
+# staging database, and the old cluster was set aside. Start them by hand if you
+# need them, and Postgres will initialise a fresh, empty cluster:
+cd /opt/stacks/snuglog
+docker compose -f docker-compose.staging.yml up -d
+```
+
 ## 🛠️ Selective Deployment
 
 Deploy specific components using tags:
@@ -597,6 +664,15 @@ ansible-playbook -i inventory.yml site.yml --tags vaultwarden
 # Note: Vaultwarden backups are automatically configured when running the vaultwarden role
 # if yandex_disk_token is set in vault.yml
 
+# Clipboard sync
+ansible-playbook -i inventory.yml site.yml --tags sharepaste
+
+# Household organiser
+ansible-playbook -i inventory.yml site.yml --tags snuglog
+
+# Note: Sharepaste and Snuglog build from GitHub. The first run prints a deploy
+# key and stops if the Pi cannot authenticate to GitHub yet.
+
 # Torrent client with VPN (requires VPN config file)
 ansible-playbook -i inventory.yml site.yml --tags torrent
 
@@ -621,6 +697,7 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 | Home Assistant | 8123 | Local only | Direct port; public access goes through HTTPS reverse proxy |
 | Frigate | 8971 | Local only | NVR and doorbell recordings |
 | qBittorrent WebUI | 8234 | Local only | Torrent client management |
+| Snuglog | 8133 | Local only | Direct port; public access goes through HTTPS reverse proxy |
 | WireGuard | Dynamic (UDP) | VPN server | VPN connection (outgoing) |
 | DNS | 53/udp | Any | DNS resolution (outgoing) |
 

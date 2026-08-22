@@ -36,5 +36,15 @@ yandex_disk_token: 'YOUR_YANDEX_DISK_OAUTH_TOKEN_HERE'
 google_home_assistant_service_account_id: 'my-app-123'
 google_home_assistant_service_account_token: '{service_account_json_here}'
 
+# Snuglog Household Organiser
+snuglog_db_password: "YOUR_SNUGLOG_DB_PASSWORD_HERE"
+snuglog_better_auth_secret: "YOUR_SNUGLOG_BETTER_AUTH_SECRET_HERE"
+snuglog_google_auth_id: "your-google-client-id"
+snuglog_google_auth_secret: "your-google-client-secret"
+snuglog_alice_skill_id: "YOUR_YANDEX_ALICE_SKILL_ID_HERE"
+snuglog_alice_oauth_client_secret: "YOUR_SNUGLOG_ALICE_OAUTH_CLIENT_SECRET_HERE"
+snuglog_cerebras_api_key: "YOUR_CEREBRAS_API_KEY_HERE"
+snuglog_tmdb_api_key: "YOUR_TMDB_API_READ_ACCESS_TOKEN_HERE"
+
 # Frigate Camera Streams
 frigate_doorbell_rtsp_url: "rtsp://username:password@192.168.178.37:88/videoMain"

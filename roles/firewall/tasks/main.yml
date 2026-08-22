@@ -146,6 +146,14 @@
     src: "{{ network.local_subnet }}"
     comment: "TinyMediaManager - local network only"
 
+- name: Allow Snuglog from local network only
+  ufw:
+    rule: allow
+    port: "{{ snuglog.port }}"
+    proto: tcp
+    src: "{{ network.local_subnet }}"
+    comment: "Snuglog - local network only"
+
 # =============================================================================
 # Enable and Display Status
 # =============================================================================

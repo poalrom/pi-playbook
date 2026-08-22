@@ -98,6 +98,14 @@
     --forward-port {{ sharepaste.port }} \
     -y                 # Auto confirm
 
+- name: Add Snuglog to Nginx Proxy Manager # noqa: no-changed-when
+  ansible.builtin.shell: |
+    {{ nginx_proxy_manager.config_path }}/npm-api.sh \
+    --host-create {{ snuglog.domain }} \
+    --forward-host 127.0.0.1 \
+    --forward-port {{ snuglog.port }} \
+    -y                 # Auto confirm
+
 - name: Display Nginx Proxy Manager access information
   ansible.builtin.debug:
     msg:

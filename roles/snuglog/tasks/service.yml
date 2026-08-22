@@ -1,0 +1,43 @@
+---
+# The compose project name comes from the directory name ("snuglog"), which is
+# what the existing containers already carry. Naming it explicitly would create
+# a second set of containers and collide on port {{ snuglog.port }}.
+#
+# `remove_orphans` stays off on purpose: the unmanaged staging containers share
+# this project name and must not be torn down by a production deploy.
+
+- name: Render snuglog env.production
+  ansible.builtin.template:
+    src: env.production.j2
+    dest: "{{ snuglog.source_path }}/env.production"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0600"
+  notify: Restart snuglog
+
+- name: Build and start snuglog production
+  community.docker.docker_compose_v2:
+    project_src: "{{ snuglog.source_path }}"
+    files:
+      - "{{ snuglog.compose_file }}"
+    state: present
+    build: always
+
+- name: Wait for snuglog to listen
+  ansible.builtin.wait_for:
+    host: "{{ network.pi_ip }}"
+    port: "{{ snuglog.port }}"
+    delay: 5
+    timeout: 120
+
+- name: Display snuglog access information
+  ansible.builtin.debug:
+    msg:
+      - "Snuglog production is now running!"
+      - "Local Access: http://{{ network.pi_ip }}:{{ snuglog.port }}"
+      - "Public Domain: https://{{ snuglog.domain }} (proxied by Nginx Proxy Manager)"
+      - "Database Cluster: {{ snuglog.database_directory }}"
+      - "Watchlist Images: {{ snuglog.images_directory }}"
+      - "Source Directory: {{ snuglog.source_path }}"
+      - "Database migrations run inside the app container on start."
+      - "After first deploy: enable SSL for {{ snuglog.domain }} in the NPM UI."

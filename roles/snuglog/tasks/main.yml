@@ -1,0 +1,45 @@
+---
+# =============================================================================
+# Snuglog Deployment (production environment only)
+# =============================================================================
+# The repository is private, so the clone needs a GitHub deploy key. The
+# repository is also the compose project directory, because
+# docker-compose.production.yml builds from "." and binds "./data".
+#
+# The staging environment on the same host stays unmanaged on purpose: it shares
+# the "snuglog" compose project name, so every compose call here is scoped to
+# the production compose file and never removes orphans.
+# =============================================================================
+
+- name: Probe GitHub SSH auth
+  ansible.builtin.include_tasks: check-github-auth.yml
+
+- name: Ensure snuglog source directory exists
+  ansible.builtin.file:
+    path: "{{ snuglog.source_path }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Ensure snuglog watchlist image directory exists on external storage
+  ansible.builtin.file:
+    path: "{{ snuglog.images_directory }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Provision GitHub deploy key (only when not already authenticated)
+  ansible.builtin.include_tasks: deploy-key.yml
+  when: not snuglog_github_authed
+
+- name: Sync source from GitHub
+  ansible.builtin.include_tasks: source.yml
+
+- name: Build and start service
+  ansible.builtin.include_tasks: service.yml
+
+- name: Configure backup
+  ansible.builtin.include_tasks: backup.yml
+  when: yandex_disk_token != ""

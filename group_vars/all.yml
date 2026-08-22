@@ -220,6 +220,48 @@ sharepaste:
     rclone_path: "sharepaste-backups"
     log_file: "{{ log_directory }}/sharepaste-backup-rclone.log"
 
+# Snuglog Household Organiser
+# Only the production environment is managed here. The compose project lives in
+# the git checkout itself because docker-compose.production.yml uses relative
+# paths (`build: .`, `./data/production/postgres`), so the repository root has
+# to be the compose project directory.
+snuglog:
+  port: 8133
+  domain: "snuglog.{{ ddns_domain }}"
+  source_path: "{{ docker.stacks_directory }}/snuglog"
+  compose_file: "docker-compose.production.yml"
+  repo_url: "git@github.com:poalrom/snuglog.git"
+  repo_branch: "main"
+  deploy_key_path: "/home/{{ users.admin_user }}/.ssh/snuglog_deploy"
+  # Postgres stays on the SD card: the external disk is exFAT and cannot hold
+  # postgres file ownership.
+  database_directory: "{{ docker.stacks_directory }}/snuglog/data/production/postgres"
+  # Posters and frames live on the external disk next to the other bulk media.
+  # The compose bind uses create_host_path: false, so this directory has to
+  # exist before the app starts, otherwise the container refuses to come up.
+  images_directory: "{{ storage.mount_point }}/snuglog/production/watchlist-images"
+  # Path inside the container; it has to match the compose bind mount target.
+  container_images_directory: "/app/data/watchlist-images"
+  db:
+    user: "postgres"
+    name: "snuglog"
+    # Compose service name of the production database.
+    host: "db-production"
+    container: "snuglog-db-production-1"
+  alice:
+    oauth_client_id: "snuglog-alice-production"
+    oauth_redirect_uri: "https://social.yandex.net/broker/redirect"
+    # Direct access to the app port is not proxied, so only enable this while
+    # Nginx Proxy Manager overwrites X-Real-IP.
+    trust_proxy_ip_headers: true
+    interpreter_rate_limit_per_minute: 60
+  # Backup Configuration
+  backup:
+    local_directory: "{{ storage.mount_point }}/backups/snuglog"
+    retention_days: 3
+    rclone_path: "snuglog-backups"
+    log_file: "{{ log_directory }}/snuglog-backup-rclone.log"
+
 # Torrent VPN Configuration
 torrent_vpn:
   config_path: "{{ docker.stacks_directory }}/qbittorrent"

@@ -1,0 +1,44 @@
+---
+- name: Create snuglog local backup directory
+  ansible.builtin.file:
+    path: "{{ snuglog.backup.local_directory }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Create log directory
+  ansible.builtin.file:
+    path: "{{ log_directory }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Install snuglog backup script
+  ansible.builtin.template:
+    src: backup-snuglog.sh.j2
+    dest: /usr/local/bin/backup-snuglog.sh
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Schedule snuglog backup cron (daily 05:00)
+  ansible.builtin.cron:
+    name: "Snuglog backup daily at 5 AM"
+    minute: "0"
+    hour: "5"
+    job: "HOME=/home/{{ users.admin_user }} PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /usr/local/bin/backup-snuglog.sh"
+    user: "{{ users.admin_user }}"
+    state: present
+
+- name: Display snuglog backup configuration
+  ansible.builtin.debug:
+    msg:
+      - "Snuglog backup configured!"
+      - "Schedule: Daily at 05:00"
+      - "Local: {{ snuglog.backup.local_directory }}"
+      - "Remote: {{ rclone.remote }}:{{ snuglog.backup.rclone_path }}"
+      - "Retention: {{ snuglog.backup.retention_days }} days"
+      - "Manual run: /usr/local/bin/backup-snuglog.sh"
+      - "Scope: postgres dump only. Watchlist images are re-fetched from TMDB."
