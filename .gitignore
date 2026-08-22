@@ -28,3 +28,6 @@ Thumbs.db
 docs
 .claude
 .superpowers
+
+# Local scratch and generated working files
+.scratch/

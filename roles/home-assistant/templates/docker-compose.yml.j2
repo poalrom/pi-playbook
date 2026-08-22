@@ -43,6 +43,7 @@ services:
       - {{ home_assistant.thread.data_path }}:/data
     environment:
       TZ: {{ home_assistant.timezone }}
+      OT_LOG_LEVEL: {{ home_assistant.thread.log_level }}
       OT_RCP_DEVICE: >-
         spinel+hdlc+uart:///dev/ttyZBT2?uart-baudrate={{ home_assistant.thread.baudrate }}{{ '&uart-flow-control' if home_assistant.thread.hardware_flow_control else '&uart-init-deassert' }}
       OT_INFRA_IF: {{ home_assistant.thread.backbone_interface }}

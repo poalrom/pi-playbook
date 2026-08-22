@@ -25,11 +25,53 @@
     name: docker-compose-plugin
     state: present
 
+# The json-file driver keeps every container log forever unless the daemon sets a
+# default. The playbook owns this file, so add any future daemon option here
+# rather than editing /etc/docker/daemon.json on the host.
+- name: Configure Docker daemon log rotation
+  ansible.builtin.copy:
+    content: "{{ docker_daemon_configuration | to_nice_json }}\n"
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+  vars:
+    docker_daemon_configuration:
+      log-driver: json-file
+      log-opts:
+        max-size: "{{ docker.log_max_size }}"
+        max-file: "{{ docker.log_max_file | string }}"
+  register: docker_daemon_configuration_file
+
 - name: Start and enable Docker service
   ansible.builtin.systemd:
     name: docker
     state: started
     enabled: true
+
+# The daemon merges log-opts into a container's HostConfig when the container is
+# CREATED, not when it starts. A restart therefore only reloads the daemon; every
+# container that already exists keeps an empty LogConfig and stays uncapped until
+# it is next recreated. Recreation happens on the next image or compose change.
+# Every container carries a restart policy, so the daemon brings them all back.
+- name: Restart Docker to apply the daemon log rotation
+  ansible.builtin.systemd:
+    name: docker
+    state: restarted
+  when:
+    - docker_daemon_configuration_file.changed
+    - not ansible_check_mode
+
+- name: Wait for the Docker daemon to accept requests
+  ansible.builtin.command: docker info --format '{{ "{{" }}.ServerVersion{{ "}}" }}'
+  register: docker_daemon_readiness
+  until: docker_daemon_readiness is success
+  retries: 12
+  delay: 5
+  changed_when: false
+  when:
+    - docker_daemon_configuration_file.changed
+    - not ansible_check_mode
 
 - name: Create Docker stacks directory
   ansible.builtin.file:

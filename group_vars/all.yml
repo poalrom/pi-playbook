@@ -50,6 +50,11 @@ shared_directory: "{{ storage.mount_point }}/samba/shared"
 # Docker Configuration
 docker:
   stacks_directory: "/opt/stacks"
+  # Container stdout/stderr uses the json-file driver, which keeps no size limit
+  # by default. One otbr log had grown to 5.2G on the root SD card. Cap every
+  # container: the worst case per container is log_max_size * log_max_file.
+  log_max_size: "20m"
+  log_max_file: 3
 
 # Security Settings
 security:
@@ -141,6 +146,10 @@ home_assistant:
     backbone_interface: "eth0"
     baudrate: 460800
     hardware_flow_control: true
+    # otbr-agent log level: EMERG=0 ALERT=1 CRIT=2 ERR=3 WARNING=4 NOTICE=5
+    # INFO=6 DEBUG=7. The image defaults to 7, which wrote about 15 MiB each day
+    # of RadioSelector and DataPollHandlr lines. NOTICE keeps the useful events.
+    log_level: 5
     rest_api:
       listen_address: "127.0.0.1"
       port: 18081
