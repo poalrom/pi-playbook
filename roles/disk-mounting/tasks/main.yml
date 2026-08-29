@@ -1,13 +1,16 @@
 ---
 
-- name: Install exfat support
+# Bookworm ships the exFAT userspace tools as `exfatprogs`. The former
+# `exfat-utils` is gone and `exfat-progs` never existed, so the old loop failed
+# on every run and `ignore_errors` hid it. The kernel supplies the exFAT driver,
+# so this package matters for one reason: it provides `fsck.exfat`, which
+# systemd runs at boot because the fstab entry below uses passno 2. Without
+# this task the package survives only as an automatic dependency, which
+# `apt autoremove` can take away, leaving the boot check with no helper.
+- name: Install exFAT tools
   ansible.builtin.apt:
-    name: "{{ item }}"
+    name: exfatprogs
     state: present
-  loop:
-    - exfat-progs
-    - exfat-utils
-  ignore_errors: true
 
 - name: Create mount directory for {{ storage.device }}
   ansible.builtin.file:
