@@ -30,6 +30,11 @@ error_exit() {
     exit 1
 }
 
+# Abort before creating any directory when the external disk is not mounted.
+# shellcheck source=/dev/null
+. {{ storage_guard_script }}
+require_storage_mount vaultwarden-backup || exit 1
+
 # Start backup
 log "Starting Vaultwarden backup to ${BACKUP_BASE_DIR}"
 

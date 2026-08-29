@@ -47,6 +47,13 @@ storage:
 log_directory: "{{ storage.mount_point }}/log"
 shared_directory: "{{ storage.mount_point }}/samba/shared"
 
+# Shell guard sourced by every backup script before it creates a directory or
+# opens a log file. The external disk is mounted with `nofail`, so the system
+# boots without it whenever the enclosure is absent or slow to appear. The
+# guard aborts the backup in that case, so the backup cannot recreate the tree
+# on the root SD card and fill it.
+storage_guard_script: "/usr/local/lib/pi-playbook/require-storage-mount.sh"
+
 # Docker Configuration
 docker:
   stacks_directory: "/opt/stacks"

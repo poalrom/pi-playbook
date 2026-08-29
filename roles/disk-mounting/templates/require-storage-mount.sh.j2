@@ -1,0 +1,49 @@
+{{ ansible_managed | comment }}
+# =============================================================================
+# Storage mount guard
+# =============================================================================
+# Sourced by every backup script before it creates a directory or opens a log
+# file. The external disk is mounted with `nofail`, so the Raspberry Pi boots
+# without it whenever the enclosure is absent, is slow to appear, or the last
+# shutdown was unclean. Every backup directory and every backup log lives on
+# that disk. Without this guard a backup recreates the whole tree on the root
+# SD card and fills it.
+#
+# Use it before the first mkdir and before the first log redirection:
+#     . {{ storage_guard_script }}
+#     require_storage_mount <syslog-tag> || exit 1
+# =============================================================================
+# shellcheck shell=bash
+
+STORAGE_MOUNT_POINT="{{ storage.mount_point }}"
+STORAGE_DEVICE="{{ storage.device }}"
+
+# Return 0 when the external disk is mounted where it belongs and is writable.
+# Otherwise report the reason to stderr and to the journal, then return 1.
+require_storage_mount() {
+    local tag="${1:-backup}"
+    local reason=""
+    local mounted_device=""
+    local message=""
+
+    if ! findmnt --mountpoint "${STORAGE_MOUNT_POINT}" >/dev/null 2>&1; then
+        reason="no filesystem is mounted at ${STORAGE_MOUNT_POINT}"
+    else
+        mounted_device="$(findmnt --noheadings --output SOURCE \
+            --mountpoint "${STORAGE_MOUNT_POINT}" 2>/dev/null || true)"
+        if [ "${mounted_device}" != "${STORAGE_DEVICE}" ]; then
+            reason="${STORAGE_MOUNT_POINT} holds ${mounted_device:-an unknown device}, but ${STORAGE_DEVICE} is expected"
+        elif [ ! -w "${STORAGE_MOUNT_POINT}" ]; then
+            reason="${STORAGE_MOUNT_POINT} is not writable"
+        fi
+    fi
+
+    if [ -n "${reason}" ]; then
+        message="aborted: ${reason}. A backup here would fill the root SD card."
+        printf '%s - ERROR: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "${message}" >&2
+        printf 'ERROR: %s\n' "${message}" | logger -t "${tag}" -p user.err
+        return 1
+    fi
+
+    return 0
+}

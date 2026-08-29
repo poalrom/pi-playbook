@@ -27,3 +27,21 @@
     dump: 0
     passno: 2
   tags: ["skip_ansible_lint"]
+
+- name: Create shared shell library directory
+  ansible.builtin.file:
+    path: "{{ storage_guard_script | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Sourced by every backup script. It has to be in place before the service
+# roles install their backup scripts, and this role already runs before them.
+- name: Install storage mount guard for the backup scripts
+  ansible.builtin.template:
+    src: require-storage-mount.sh.j2
+    dest: "{{ storage_guard_script }}"
+    owner: root
+    group: root
+    mode: "0644"

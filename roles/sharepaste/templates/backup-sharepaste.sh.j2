@@ -18,6 +18,12 @@ LOG="{{ sharepaste.backup.log_file }}"
 TIMESTAMP=$(date +"%Y-%m-%d-%H%M%S")
 OUT="${LOCAL_DIR}/${TIMESTAMP}-sharepaste.sqlite"
 
+# Abort before the mkdir and before the log redirection below. The backup
+# directory and the log file both live on the external disk.
+# shellcheck source=/dev/null
+. {{ storage_guard_script }}
+require_storage_mount sharepaste-backup || exit 1
+
 mkdir -p "$LOCAL_DIR" "{{ log_directory }}"
 exec >> "$LOG" 2>&1
 

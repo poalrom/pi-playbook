@@ -138,6 +138,27 @@ ansible-playbook -i inventory.yml site.yml
 - **Dynamic DNS**: Automatic IP updates via myaddr.tools
 - **External storage**: Automatic mounting and configuration
 - **Rclone**: Cloud storage synchronization tool (used for backups)
+- **Storage mount guard**: Aborts a backup when the external disk is missing
+
+#### Storage mount guard
+
+Every backup directory and every backup log lives on the external disk. The
+disk is mounted with `nofail`, so the Pi boots without it whenever the
+enclosure is absent, is slow to appear, or the last shutdown was unclean.
+
+`disk-mounting` installs `/usr/local/lib/pi-playbook/require-storage-mount.sh`.
+Each backup script sources it and calls `require_storage_mount` before the
+first `mkdir` and before the first log redirection. The guard checks that
+`/media/pi/home` is a mount point, that it holds `/dev/sda2`, and that it is
+writable. If any check fails, the backup stops with exit code 1 and reports
+the reason to stderr and to the journal.
+
+Without the guard a backup recreates the whole tree on the root SD card and
+fills it. Read the refusals with:
+
+```bash
+journalctl -t immich-backup -t vaultwarden-backup -t sharepaste-backup -t snuglog-backup
+```
 
 ### Monitoring & Alerting
 - **Uptime Kuma**: Service monitoring dashboard with Telegram alerts

@@ -32,12 +32,17 @@ error_exit() {
     exit 1
 }
 
+# Abort before creating any directory when the external disk is not mounted.
+# shellcheck source=/dev/null
+. {{ storage_guard_script }}
+require_storage_mount immich-backup || exit 1
+
 # Start backup
 log "Starting Immich backup to ${BACKUP_BASE_DIR}"
 
 # Create backup base directory and log directory
 mkdir -p "${BACKUP_BASE_DIR}" || error_exit "Failed to create backup directory"
-mkdir -p /media/pi/home/log || true
+mkdir -p {{ log_directory }} || true
 
 # Backup database
 log "Backing up database..."
