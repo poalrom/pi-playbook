@@ -15,6 +15,40 @@
     mode: "0600"
   notify: Restart snuglog
 
+# The runtime image only starts the server; it never migrates. The Better Auth
+# MCP plugin reads its own tables during boot, so an unmigrated database makes
+# every request answer 500. Bring the database up alone, migrate, then start
+# the app.
+- name: Start snuglog production database
+  community.docker.docker_compose_v2:
+    project_src: "{{ snuglog.source_path }}"
+    files:
+      - "{{ snuglog.compose_file }}"
+    services:
+      - db-production
+    state: present
+    wait: true
+
+# The image build and the migration both report "ok" on purpose. Docker and
+# drizzle-kit print the same text whether or not work was needed, so neither
+# command can tell a real change from a no-op.
+- name: Build snuglog production app image
+  ansible.builtin.command:
+    cmd: docker compose -f {{ snuglog.compose_file }} build app-production
+    chdir: "{{ snuglog.source_path }}"
+  changed_when: false
+
+- name: Apply snuglog database migrations
+  ansible.builtin.command:
+    cmd: docker compose -f {{ snuglog.compose_file }} run --rm --no-deps app-production npm run db:migrate
+    chdir: "{{ snuglog.source_path }}"
+  register: snuglog_migrate
+  changed_when: false
+
+- name: Report migration output
+  ansible.builtin.debug:
+    var: snuglog_migrate.stdout_lines
+
 - name: Build and start snuglog production
   community.docker.docker_compose_v2:
     project_src: "{{ snuglog.source_path }}"
@@ -39,5 +73,5 @@
       - "Database Cluster: {{ snuglog.database_directory }}"
       - "Watchlist Images: {{ snuglog.images_directory }}"
       - "Source Directory: {{ snuglog.source_path }}"
-      - "Database migrations run inside the app container on start."
+      - "Database migrations are applied by this role before the app starts."
       - "After first deploy: enable SSL for {{ snuglog.domain }} in the NPM UI."
