@@ -1,0 +1,15 @@
+[Unit]
+Description=Send a Telegram message for each boot
+# network-online.target is required for the Telegram API call. time-sync.target
+# only orders the unit after the sync attempt; the script itself waits for NTP.
+After=network-online.target time-sync.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ boot_notify.script_path }}
+User=root
+EnvironmentFile={{ boot_notify.env_file }}
+
+[Install]
+WantedBy=multi-user.target

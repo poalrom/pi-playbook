@@ -80,6 +80,29 @@ system:
     storage: "persistent"
     max_use: "200M"
 
+# Boot Notification
+# The board can reset without writing a single log line, so a message for each
+# boot is the only reliable report of such a reset. The message carries the
+# previous boot duration and a clean or unclean verdict.
+boot_notify:
+  script_path: "/usr/local/bin/notify-boot.sh"
+  env_file: "/etc/pi-playbook/boot-notify.env"
+  # State lives on the root filesystem, so it survives a power cut and the
+  # absence of the external disk.
+  state_file: "/var/lib/pi-playbook/boot-notify.state"
+  api_base: "https://api.telegram.org"
+  # A reset loop produced 21 resets in 48 minutes on 2026-09-12. The limit keeps
+  # such a loop from flooding the chat; the next message reports the count of
+  # the boots that stayed silent.
+  max_per_window: 5
+  window_seconds: 3600
+  # Upper bound on the state file. A suppressed boot keeps its line until a
+  # message reports it, so a long Telegram outage would otherwise grow the file.
+  max_state_lines: 500
+  # The Pi has no RTC. The script waits this long for NTP before it reads the
+  # wall clock.
+  clock_wait_seconds: 60
+
 # =============================================================================
 # Role-Specific Configuration Parameters
 # =============================================================================

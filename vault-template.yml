@@ -9,6 +9,13 @@
 myaddr_api_key: "YOUR_MYADDR_API_KEY_HERE"
 ddns_domain: "YOUR_DDNS_DOMAIN_HERE.myaddr.tools"
 
+# Boot notification via Telegram
+# Create the bot with @BotFather. Read the chat id from
+# https://api.telegram.org/bot<TOKEN>/getUpdates after you message the bot.
+# An empty token disables the boot-notify role.
+telegram_bot_token: "YOUR_TELEGRAM_BOT_TOKEN_HERE"
+telegram_chat_id: "YOUR_TELEGRAM_CHAT_ID_HERE"
+
 # Service Passwords
 # MQTT Broker Credentials
 mqtt_broker_username: "homeassistant"

@@ -1,0 +1,140 @@
+#!/bin/bash
+# =============================================================================
+# Boot Notification - Telegram
+# =============================================================================
+# Runs once for each boot. Reports how long the previous boot lasted and whether
+# it ended with shutdown markers. Zero markers mean the board lost power or
+# reset, because a clean stop always writes them.
+#
+# The Pi has no RTC, so the script waits for NTP before it reads the wall clock.
+# The previous boot duration comes from the monotonic clock, which a wrong wall
+# clock cannot distort.
+#
+# The rate limit keeps a reset loop from flooding the chat. State lives on the
+# root filesystem, so it survives a power cut and the loss of the external disk.
+# =============================================================================
+set -u
+
+STATE_FILE="{{ boot_notify.state_file }}"
+MAX_PER_WINDOW={{ boot_notify.max_per_window }}
+WINDOW_SECONDS={{ boot_notify.window_seconds }}
+CLOCK_WAIT_SECONDS={{ boot_notify.clock_wait_seconds }}
+API_BASE="{{ boot_notify.api_base }}"
+
+log() { printf '%s\n' "$1" | logger -t boot-notify; }
+
+if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+    log "no telegram credentials in the environment file, nothing sent"
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Wait for a real clock. Without this the rate window uses the stale
+# fake-hwclock value and the message shows the wrong boot time.
+# ---------------------------------------------------------------------------
+waited=0
+while [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" != "yes" ] &&
+    [ "$waited" -lt "$CLOCK_WAIT_SECONDS" ]; do
+    sleep 2
+    waited=$((waited + 2))
+done
+clock_state="synchronised after ${waited}s"
+if [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" != "yes" ]; then
+    clock_state="NOT synchronised, times below are unreliable"
+fi
+
+# ---------------------------------------------------------------------------
+# Facts about this boot and the previous one.
+# ---------------------------------------------------------------------------
+now=$(date +%s)
+host=$(hostname)
+kernel=$(uname -r)
+boot_time=$(date '+%Y-%m-%d %H:%M:%S %Z')
+uptime_now=$(cut -d. -f1 /proc/uptime)
+
+# Last monotonic timestamp of the previous boot equals the seconds it survived.
+prev_survived=$(journalctl -b -1 -o short-monotonic -n 1 --no-pager 2>/dev/null |
+    sed -n 's/^\[[[:space:]]*\([0-9][0-9]*\)\..*/\1/p')
+prev_markers=$(journalctl -b -1 --no-pager 2>/dev/null |
+    grep -acE 'systemd-shutdown|Reached target (Shutdown|Reboot|Power-Off)|Stopped target' || true)
+
+if [ -z "$prev_survived" ]; then
+    prev_line="previous boot: not in the journal"
+elif [ "${prev_markers:-0}" -eq 0 ]; then
+    prev_line="previous boot: ran ${prev_survived}s, ended UNCLEAN (no shutdown markers, so power loss or reset)"
+else
+    prev_line="previous boot: ran ${prev_survived}s, ended clean (${prev_markers} shutdown markers)"
+fi
+
+temp=$(vcgencmd measure_temp 2>/dev/null | cut -d= -f2)
+throttled=$(vcgencmd get_throttled 2>/dev/null | cut -d= -f2)
+undervoltage="n/a"
+for hwmon in /sys/class/hwmon/hwmon*; do
+    if [ "$(cat "$hwmon/name" 2>/dev/null)" = "rpi_volt" ] && [ -r "$hwmon/in0_lcrit_alarm" ]; then
+        undervoltage=$(cat "$hwmon/in0_lcrit_alarm")
+    fi
+done
+
+# ---------------------------------------------------------------------------
+# Rate limit. Each line of the state file is "<epoch> sent" or
+# "<epoch> suppressed". Entries outside the window, and entries dated in the
+# future, drop out. A backwards clock jump therefore cannot mute the alert.
+# ---------------------------------------------------------------------------
+mkdir -p "$(dirname "$STATE_FILE")"
+[ -e "$STATE_FILE" ] || : >"$STATE_FILE"
+
+window_file="${STATE_FILE}.tmp"
+# A "sent" entry expires with the window. A "suppressed" entry survives until
+# the next message reports it, so no reset stays unreported.
+awk -v now="$now" -v window="$WINDOW_SECONDS" \
+    '$1 !~ /^[0-9]+$/ { next }
+     $2 == "suppressed" { print; next }
+     $2 == "sent" && $1 <= now && (now - $1) < window { print }' "$STATE_FILE" >"$window_file"
+
+sent_in_window=$(awk '$2 == "sent"' "$window_file" | wc -l)
+suppressed_before=$(awk '$2 == "suppressed"' "$window_file" | wc -l)
+
+if [ "$sent_in_window" -ge "$MAX_PER_WINDOW" ]; then
+    printf '%s suppressed\n' "$now" >>"$window_file"
+    # Cap the file, so a long outage of the Telegram API cannot grow it without
+    # a limit.
+    tail -n {{ boot_notify.max_state_lines }} "$window_file" >"${window_file}.capped"
+    mv "${window_file}.capped" "$STATE_FILE"
+    rm -f "$window_file"
+    log "rate limit reached: $sent_in_window messages in the last ${WINDOW_SECONDS}s, this boot suppressed"
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Message.
+# ---------------------------------------------------------------------------
+message="$host booted
+time: $boot_time (clock $clock_state)
+kernel: $kernel
+uptime now: ${uptime_now}s
+$prev_line
+temp: ${temp:-unknown}  throttled: ${throttled:-unknown}  undervoltage alarm: $undervoltage"
+
+if [ "$suppressed_before" -gt 0 ]; then
+    message="$message
+note: $suppressed_before further boots sent no message, because the limit is $MAX_PER_WINDOW for each ${WINDOW_SECONDS}s"
+fi
+
+# The token stays out of the process list: curl reads the URL from a config on
+# stdin instead of from an argument.
+if printf 'url = "%s"\n' "${API_BASE}/bot${TELEGRAM_BOT_TOKEN}/sendMessage" |
+    curl -fsS --max-time 20 --config - \
+        --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+        --data-urlencode "text=${message}" >/dev/null; then
+    # The message reported the suppressed boots, so only the sent entries stay.
+    awk '$2 == "sent"' "$window_file" >"${window_file}.kept"
+    printf '%s sent\n' "$now" >>"${window_file}.kept"
+    mv "${window_file}.kept" "$STATE_FILE"
+    rm -f "$window_file"
+    log "boot notification sent ($((sent_in_window + 1))/$MAX_PER_WINDOW in the window)"
+else
+    # No "sent" entry, so the next boot may use the same slot.
+    mv "$window_file" "$STATE_FILE"
+    log "telegram send failed"
+    exit 1
+fi

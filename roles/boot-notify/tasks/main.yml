@@ -1,0 +1,75 @@
+---
+# =============================================================================
+# Boot Notification via Telegram
+# =============================================================================
+# The board can reset without writing any log line. A message for each boot is
+# the only reliable report of such a reset, because nothing on the Pi can send
+# a message while the Pi has no power.
+# =============================================================================
+
+- name: Create the pi-playbook configuration directory
+  ansible.builtin.file:
+    path: "{{ boot_notify.env_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Create the boot notification state directory
+  ansible.builtin.file:
+    path: "{{ boot_notify.state_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install the Telegram credentials
+  ansible.builtin.template:
+    src: boot-notify.env.j2
+    dest: "{{ boot_notify.env_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Install the boot notification script
+  ansible.builtin.template:
+    src: notify-boot.sh.j2
+    dest: "{{ boot_notify.script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the boot notification service
+  ansible.builtin.template:
+    src: boot-notify.service.j2
+    dest: /etc/systemd/system/boot-notify.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+# The unit is enabled but not started here. A deploy would otherwise send a
+# message that reports no reset. Send a test message with:
+#   sudo systemctl start boot-notify.service
+- name: Enable the boot notification service
+  ansible.builtin.systemd:
+    name: boot-notify.service
+    enabled: true
+
+- name: Verify the boot notification service
+  ansible.builtin.command: systemd-analyze verify boot-notify.service
+  register: boot_notify_verify
+  changed_when: false
+  failed_when: boot_notify_verify.rc != 0
+
+- name: Display the boot notification setup
+  ansible.builtin.debug:
+    msg:
+      - "Boot notification enabled for each boot."
+      - "Limit: {{ boot_notify.max_per_window }} messages for each {{ boot_notify.window_seconds }} seconds."
+      - "Test it with: sudo systemctl start boot-notify.service"
+      - "Read the outcome with: journalctl -t boot-notify"

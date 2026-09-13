@@ -164,6 +164,7 @@ journalctl -t immich-backup -t vaultwarden-backup -t sharepaste-backup -t snuglo
 - **Uptime Kuma**: Service monitoring dashboard with Telegram alerts
 - **Glances**: System resource monitoring with web interface
 - **Health checks**: Container, service, and system metric monitoring
+- **Boot notification**: Telegram message for each boot, with a clean or unclean verdict
 
 ### Services
 - **Samba**: Secure file sharing (local network only)
@@ -613,6 +614,11 @@ docker exec sharepaste sharepaste user create <name>
 # env.production is rendered from group_vars/all.yml and vault.yml. Never edit
 # it on the host: the next playbook run overwrites it.
 
+# The runtime image only starts the server. The role starts the database,
+# applies the drizzle migrations with a one-off container, and then starts the
+# app. An unmigrated database makes every request answer 500, because the
+# Better Auth MCP plugin reads its own tables during boot.
+
 # Postgres cluster: /opt/stacks/snuglog/data/production/postgres (SD card;
 # the external disk is exFAT and cannot hold postgres file ownership).
 # Posters and frames: /media/pi/home/snuglog/production/watchlist-images
@@ -637,6 +643,49 @@ docker exec sharepaste sharepaste user create <name>
 cd /opt/stacks/snuglog
 docker compose -f docker-compose.staging.yml up -d
 ```
+
+### 13. Boot Notification Setup
+
+The board can reset without writing a single log line. Nothing on the Pi can
+report such a reset while the Pi has no power, so the alert goes out at the
+next boot instead.
+
+**Create the bot**:
+```bash
+# 1. Message @BotFather in Telegram and run /newbot. Keep the token.
+# 2. Send any message to your new bot.
+# 3. Read the chat id:
+curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates" | grep -o '"chat":{"id":[-0-9]*'
+```
+
+**Configure and deploy**:
+```bash
+# Put both values in vault.yml. An empty token skips the role.
+#   telegram_bot_token: "1234567890:AA..."
+#   telegram_chat_id: "-1001234567890"
+ansible-playbook -i inventory.yml site.yml --tags boot-notify
+
+# Send a test message now, without waiting for a reboot
+ssh -p 2312 home-pi@PI_IP "sudo systemctl start boot-notify.service"
+
+# Read what the script decided
+ssh -p 2312 home-pi@PI_IP "journalctl -t boot-notify -n 20"
+```
+
+**Message contents**: hostname, boot time, kernel, current uptime, the duration
+of the previous boot from the monotonic clock, a clean or unclean verdict,
+temperature, `throttled` and the under-voltage alarm. No shutdown markers in
+the previous boot means the board lost power or reset.
+
+**Rate limit**: at most `boot_notify.max_per_window` messages (5) for each
+`boot_notify.window_seconds` (3600). A reset loop therefore cannot flood the
+chat. Every silent boot keeps a line in
+`/var/lib/pi-playbook/boot-notify.state`, and the next message reports how many
+boots stayed silent, so no reset goes unreported.
+
+**Clock**: the Pi has no RTC, so the script waits up to
+`boot_notify.clock_wait_seconds` (60) for NTP. The message says so when the
+clock is still unsynchronised.
 
 ## 🛠️ Selective Deployment
 
@@ -699,6 +748,9 @@ ansible-playbook -i inventory.yml site.yml --tags torrent
 
 # Dynamic DNS
 ansible-playbook -i inventory.yml site.yml --tags ddns
+
+# Boot notification via Telegram
+ansible-playbook -i inventory.yml site.yml --tags boot-notify
 ```
 
 ## 🔒 Security Features

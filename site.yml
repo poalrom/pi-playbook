@@ -30,6 +30,11 @@
       tags: ["security"]
       # Note: User management is handled in the separate user management phase above
 
+    # Deployed early, so a failure in a later role cannot stop the reset alerts.
+    - role: boot-notify
+      when: telegram_bot_token != ""
+      tags: ["boot-notify"]
+
     - role: firewall
       tags: ["firewall"]
 
