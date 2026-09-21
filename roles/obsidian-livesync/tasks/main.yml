@@ -23,17 +23,59 @@
     delay: 10
     timeout: 60
 
-- name: Configure CouchDB for Obsidian LiveSync
-  tags: ["skip_ansible_lint"]
-  ansible.builtin.shell: |
-    curl -s https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/utils/couchdb/couchdb-init.sh | bash
-  environment:
-    hostname: "http://{{ obsidian_livesync_db_user }}:{{ obsidian_livesync_db_password }}@127.0.0.1:{{ obsidian_livesync.port }}"
-    username: "{{ obsidian_livesync_db_user }}"
+- name: Read the CouchDB cluster setup state
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ obsidian_livesync.port }}/_cluster_setup"
+    user: "{{ obsidian_livesync_db_user }}"
     password: "{{ obsidian_livesync_db_password }}"
-  register: couchdb_config_result
-  failed_when: couchdb_config_result.rc != 0
-  changed_when: true
+    force_basic_auth: true
+  register: obsidian_livesync_cluster_state
+  changed_when: false
+
+- name: Enable the CouchDB single node setup
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ obsidian_livesync.port }}/_cluster_setup"
+    method: POST
+    user: "{{ obsidian_livesync_db_user }}"
+    password: "{{ obsidian_livesync_db_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      action: enable_single_node
+      username: "{{ obsidian_livesync_db_user }}"
+      password: "{{ obsidian_livesync_db_password }}"
+      bind_address: "0.0.0.0"
+      port: "{{ obsidian_livesync.port | int }}"
+      singlenode: true
+    status_code: [200, 201]
+  when: obsidian_livesync_cluster_state.json.state != "single_node_enabled"
+
+- name: Read the CouchDB settings that Obsidian LiveSync requires
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ obsidian_livesync.port }}/_node/_local/_config/{{ item.section }}/{{ item.key }}"
+    user: "{{ obsidian_livesync_db_user }}"
+    password: "{{ obsidian_livesync_db_password }}"
+    force_basic_auth: true
+    status_code: [200, 404]
+  loop: "{{ obsidian_livesync_couchdb_settings }}"
+  loop_control:
+    label: "{{ item.section }}/{{ item.key }}"
+  register: obsidian_livesync_current_settings
+  changed_when: false
+
+- name: Apply the CouchDB settings that Obsidian LiveSync requires
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ obsidian_livesync.port }}/_node/_local/_config/{{ item.item.section }}/{{ item.item.key }}"
+    method: PUT
+    user: "{{ obsidian_livesync_db_user }}"
+    password: "{{ obsidian_livesync_db_password }}"
+    force_basic_auth: true
+    body_format: json
+    body: "{{ item.item.value }}"
+  loop: "{{ obsidian_livesync_current_settings.results }}"
+  loop_control:
+    label: "{{ item.item.section }}/{{ item.item.key }}"
+  when: item.status == 404 or item.json != item.item.value
 
 - name: Install Deno
   tags: ["skip_ansible_lint"]
