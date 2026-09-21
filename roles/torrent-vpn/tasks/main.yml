@@ -38,11 +38,37 @@
     group: "{{ users.admin_user }}"
     mode: '0755'
 
+- name: Look for the WireGuard config on the controller
+  ansible.builtin.stat:
+    path: "{{ role_path }}/files/{{ torrent_vpn.vpn_config_name }}.conf"
+  register: torrent_vpn_local_config
+  delegate_to: localhost
+  become: false
+  changed_when: false
+
+- name: Look for the deployed WireGuard config
+  ansible.builtin.stat:
+    path: "{{ torrent_vpn.config_path }}/{{ torrent_vpn.vpn_config_name }}.conf"
+  register: torrent_vpn_remote_config
+  changed_when: false
+
+- name: Fail when no WireGuard config is available
+  ansible.builtin.fail:
+    msg: >-
+      {{ torrent_vpn.vpn_config_name }}.conf is absent both in
+      roles/torrent-vpn/files/ on the controller and in
+      {{ torrent_vpn.config_path }} on the host. Gluetun cannot start without
+      it. Place the WireGuard config in roles/torrent-vpn/files/ and run again.
+  when:
+    - not torrent_vpn_local_config.stat.exists
+    - not torrent_vpn_remote_config.stat.exists
+
 - name: Copy WireGuard config file
   ansible.builtin.copy:
     src: "{{ torrent_vpn.vpn_config_name }}.conf"
     dest: "{{ torrent_vpn.config_path }}/{{ torrent_vpn.vpn_config_name }}.conf"
     mode: '0600'
+  when: torrent_vpn_local_config.stat.exists
 
 - name: Get admin user UID
   ansible.builtin.command: id -u {{ users.admin_user }}
@@ -85,7 +111,26 @@
     - { section: "BitTorrent", option: "Session\\TempPath", value: "/incomplete" }
     - { section: "BitTorrent", option: "Session\\TempPathEnabled", value: "true" }
     - { section: "Preferences", option: "WebUI\\Port", value: "{{ torrent_vpn.qbittorrent_webui_port }}" }
-    - { section: "Preferences", option: "WebUI\\Password_PBKDF2", value: "{{ torrent_vpn.default_password }}" }
+
+- name: Read the qBittorrent configuration
+  ansible.builtin.slurp:
+    src: "{{ torrent_vpn.qbittorrent_config_path }}/qBittorrent/qBittorrent.conf"
+  register: torrent_vpn_qbittorrent_conf
+  failed_when: false
+  changed_when: false
+
+- name: Seed the qBittorrent WebUI password when none is set
+  ansible.builtin.ini_file:
+    path: "{{ torrent_vpn.qbittorrent_config_path }}/qBittorrent/qBittorrent.conf"
+    section: "Preferences"
+    option: "WebUI\\Password_PBKDF2"
+    value: "{{ torrent_vpn.default_password }}"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: '0644'
+  when: >-
+    torrent_vpn_qbittorrent_conf.content is not defined
+    or 'Password_PBKDF2' not in (torrent_vpn_qbittorrent_conf.content | b64decode)
 
 - name: Start qBittorrent Docker stack
   community.docker.docker_compose_v2:

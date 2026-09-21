@@ -513,8 +513,10 @@ standalone Docker deployment is self-managed and follows the upstream
 **Initial configuration**:
 ```bash
 # qBittorrent WebUI is available at http://PI_IP:8234
-# Default credentials: admin / adminadmin
-# ⚠️ IMPORTANT: Change password on first login!
+# User name: read it from the config, it is not managed by the playbook.
+#   sudo grep 'WebUI.Username' /opt/stacks/qbittorrent/config/qBittorrent/qBittorrent.conf
+# Password: seeded as "adminadmin" only when the config holds none.
+# ⚠️ IMPORTANT: Change the password on first login!
 
 # Verify VPN connection:
 sudo systemctl status wg-quick@myvpn
