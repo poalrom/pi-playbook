@@ -1,6 +1,6 @@
 services:
   tinymediamanager:
-    image: tinymediamanager/tinymediamanager:latest
+    image: tinymediamanager/tinymediamanager:{{ tinymediamanager.version }}
     container_name: tinymediamanager
     restart: unless-stopped
     ports:

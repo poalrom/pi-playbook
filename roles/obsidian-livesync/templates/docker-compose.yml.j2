@@ -1,6 +1,6 @@
 services:
   couchdb:
-    image: couchdb:latest
+    image: couchdb:{{ obsidian_livesync.version }}
     container_name: obsidian_livesync_couchdb
     restart: unless-stopped
     environment:

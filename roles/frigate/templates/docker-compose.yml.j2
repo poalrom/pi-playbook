@@ -1,7 +1,7 @@
 services:
   frigate:
     container_name: frigate
-    image: ghcr.io/blakeblackshear/frigate:stable
+    image: ghcr.io/blakeblackshear/frigate:{{ frigate.version }}
     restart: unless-stopped
     stop_grace_period: 30s
     shm_size: "256mb"

@@ -318,8 +318,8 @@ sudo smbpasswd -a home-pi
 # In the client, set the server URL to: https://vwdn.yourdomain.com
 ```
 
-**Version management**:
-- The server image is pinned in `group_vars/all.yml` (`vaultwarden.version`), currently `1.37.1`.
+**Version management**: see [Image version management](#-image-version-management).
+- The server image is pinned in `group_vars/all.yml` (`vaultwarden.version`), currently `1.37.2`.
 - To upgrade: bump `vaultwarden.version` to the desired tag from
   [vaultwarden releases](https://github.com/dani-garcia/vaultwarden/releases),
   then run `ansible-playbook -i inventory.yml site.yml --tags vaultwarden`.
@@ -755,6 +755,73 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 ansible-playbook -i inventory.yml site.yml --tags boot-notify
 ```
 
+## 📌 Image Version Management
+
+Every container image is pinned to an exact version in `group_vars/all.yml`. A
+role calls `community.docker.docker_compose_v2` with `state: present`, and that
+module uses the Compose `missing` pull policy. A floating tag such as `latest`
+or `stable` is therefore never refreshed after the first pull: the host keeps
+the image it downloaded on the first run. Ten images had drifted 9 to 14 months
+behind upstream before the pins were introduced.
+
+| Variable | Image |
+|----------|-------|
+| `immich.version` | `ghcr.io/immich-app/immich-server` and `-machine-learning` (through `IMMICH_VERSION` in `.env`) |
+| `home_assistant.version` | `ghcr.io/home-assistant/home-assistant` |
+| `home_assistant.mqtt.image` | `eclipse-mosquitto` |
+| `home_assistant.thread.image` | `openthread/border-router` |
+| `home_assistant.matter.image` | `ghcr.io/matter-js/python-matter-server` |
+| `frigate.version` | `ghcr.io/blakeblackshear/frigate` |
+| `vaultwarden.version` | `vaultwarden/server` |
+| `uptime_kuma.version` | `louislam/uptime-kuma` |
+| `nginx_proxy_manager.version` | `jc21/nginx-proxy-manager` |
+| `obsidian_livesync.version` | `couchdb` |
+| `torrent_vpn.gluetun_version` | `qmcgaw/gluetun` |
+| `torrent_vpn.qbittorrent_version` | `lscr.io/linuxserver/qbittorrent` |
+| `glances.version` | `nicolargo/glances` |
+| `tinymediamanager.version` | `tinymediamanager/tinymediamanager` |
+
+The Immich database and cache images stay pinned by digest in
+`roles/immich/templates/docker-compose.yml.j2`, because Immich ties the
+VectorChord extension version to the server version.
+
+### Upgrade procedure
+
+```bash
+# 1. Read the upstream release notes between the running and the target version.
+# 2. Stop the service and copy its data outside the pruned backup directories:
+ssh -p 2312 home-pi@PI_IP
+cd /opt/stacks/<service> && docker compose stop
+sudo tar -czf /media/pi/home/backups/pre-upgrade-$(date +%F)/<service>.tar.gz \
+    -C /opt/stacks/<service> data
+
+# 3. Bump the variable in group_vars/all.yml, then deploy that role only:
+ansible-playbook -i inventory.yml site.yml --tags <tag>
+
+# 4. Verify the running version and the data before the next service:
+docker ps --format '{{.Names}} {{.Image}} {{.Status}}'
+```
+
+A tag change makes the image missing on the host, so Ansible pulls it without
+any extra option. The pull of a large image can take 25 minutes on the SD card.
+
+### Rollback
+
+Restore the data copy and set the variable back to the previous tag. This works
+only when the upgrade applied no schema migration. Immich, Home Assistant,
+Uptime Kuma, Nginx Proxy Manager, Frigate 0.18+ and tinyMediaManager all
+migrate their store forward and never migrate it back, so for those the data
+copy is the only rollback.
+
+### Do not upgrade without preparation
+
+- **Frigate 0.18+** rewrites `config.yml` in place, and the file is rendered
+  from `roles/frigate/templates/config.yml.j2`. Port the template to the 0.18
+  schema first, or the next playbook run reverts the migrated file.
+- **Matter server**: `python-matter-server` 8.1.2 is the final release of that
+  project. The successor is `ghcr.io/matter-js/matterjs-server`, which is still
+  a Beta, is not re-certified by the CSA, and migrates its storage one way.
+
 ## 🔒 Security Features
 
 ### Firewall Rules Applied
@@ -799,10 +866,8 @@ sudo journalctl -u ssh
 sudo journalctl -u fail2ban
 docker logs <container-name>
 
-# Update Docker services
-cd /opt/stacks/<service>
-docker compose pull
-docker compose up -d
+# Update a Docker service: see "Image Version Management"
+ansible-playbook -i inventory.yml site.yml --tags <tag>
 
 # System updates
 sudo apt update && sudo apt upgrade -y

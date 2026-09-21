@@ -118,6 +118,7 @@ immich:
   port: 2283
   domain: "photo.{{ ddns_domain }}"
   public_access: true
+  version: "v3.2.0"
   config_path: "{{ docker.stacks_directory }}/immich"
   library_directory: "{{ storage.mount_point }}/immich/library"
   # Placed to the main storage to avoid permission conflicts
@@ -134,6 +135,7 @@ rclone:
 
 # Nginx Proxy Manager
 nginx_proxy_manager:
+  version: "2.15.1"
   port: 81
   http_port: 80
   https_port: 443
@@ -141,6 +143,7 @@ nginx_proxy_manager:
 
 # Uptime Kuma Monitoring
 uptime_kuma:
+  version: "2.5.4"
   port: 3001
   config_path: "{{ docker.stacks_directory }}/uptime-kuma"
   data_path: "{{ docker.stacks_directory }}/uptime-kuma/data"
@@ -153,11 +156,13 @@ samba:
 
 # Glances System Monitoring
 glances:
+  version: "4.5.6-full"
   port: 61208
   config_path: "{{ docker.stacks_directory }}/glances"
 
 # Home Assistant Home Automation
 home_assistant:
+  version: "2026.9.2"
   port: 8123
   domain: "has.{{ ddns_domain }}"
   config_path: "{{ docker.stacks_directory }}/home-assistant"
@@ -170,7 +175,7 @@ home_assistant:
     config_path: "{{ docker.stacks_directory }}/home-assistant/mosquitto/config"
     data_path: "{{ docker.stacks_directory }}/home-assistant/mosquitto/data"
   thread:
-    image: "openthread/border-router:latest"
+    image: "openthread/border-router:v2026.09.0"
     device: "/dev/serial/by-id/usb-Nabu_Casa_ZBT-2_E072A1D74B14-if00"
     data_path: "{{ home_assistant.config_path }}/otbr"
     backbone_interface: "eth0"
@@ -187,7 +192,7 @@ home_assistant:
       listen_address: "127.0.0.1"
       port: 18080
   matter:
-    image: "ghcr.io/matter-js/python-matter-server:stable"
+    image: "ghcr.io/matter-js/python-matter-server:8.1.2"
     data_path: "{{ home_assistant.config_path }}/matter"
     port: 5581
   yandex_smart_home:
@@ -207,6 +212,7 @@ home_assistant:
 
 # Frigate NVR
 frigate:
+  version: "0.17.2"
   port: 8971
   config_path: "{{ docker.stacks_directory }}/frigate"
   media_path: "{{ storage.mount_point }}/frigate"
@@ -215,13 +221,14 @@ frigate:
 
 # Obsidian LiveSync
 obsidian_livesync:
+  version: "3.5.2.1"
   port: 5984
   domain: "vault.{{ ddns_domain }}"
   config_path: "{{ docker.stacks_directory }}/obsidian-livesync"
 
 # Vaultwarden Password Manager
 vaultwarden:
-  version: "1.37.1"
+  version: "1.37.2"
   port: 11011
   domain: "vwdn.{{ ddns_domain }}"
   config_path: "{{ docker.stacks_directory }}/vaultwarden"
@@ -285,7 +292,6 @@ snuglog:
     # Nginx Proxy Manager overwrites X-Real-IP.
     trust_proxy_ip_headers: true
     interpreter_rate_limit_per_minute: 60
-  # Backup Configuration
   backup:
     local_directory: "{{ storage.mount_point }}/backups/snuglog"
     retention_days: 3
@@ -294,6 +300,8 @@ snuglog:
 
 # Torrent VPN Configuration
 torrent_vpn:
+  gluetun_version: "v3.41.3"
+  qbittorrent_version: "5.2.3_v2.0.14-ls475"
   config_path: "{{ docker.stacks_directory }}/qbittorrent"
   qbittorrent_config_path: "{{ docker.stacks_directory }}/qbittorrent/config"
   download_path: "{{ shared_directory }}/downloads"
@@ -306,6 +314,7 @@ torrent_vpn:
 
 # TinyMediaManager
 tinymediamanager:
+  version: "5.3.2"
   port: 4261
   config_path: "{{ docker.stacks_directory }}/tinymediamanager"
   data_path: "{{ docker.stacks_directory }}/tinymediamanager/data"
