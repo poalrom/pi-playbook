@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# =============================================================================
+# {{ app.display_name }} Update Script
+# =============================================================================
+# Moves the checkout to the newest commit of "{{ app.repo_branch }}" and
+# restarts the containers from it. This is the manual deploy of
+# {{ app_key }}, written down: fetch, build{% if app.migrate_service %}, migrate{% endif %}, start, check the port.
+#
+# Home Assistant runs this script through {{ app_update.listener_script_path }}.
+# An operator can run the same script over SSH.
+#
+# The script renders no template. compose.yml and every env file stay owned by
+# the playbook, so a change there still needs an ansible run.
+# =============================================================================
+
+set -euo pipefail
+
+RUN_USER="{{ users.admin_user }}"
+SOURCE_PATH="{{ app.source_path }}"
+PROJECT_PATH="{{ app.project_path }}"
+BRANCH="{{ app.repo_branch }}"
+HEALTH_HOST="{{ app.health_host }}"
+HEALTH_PORT="{{ app.health_port }}"
+HEALTH_TIMEOUT={{ app_update.health_timeout }}
+
+{% if app.compose_file %}
+# Named explicitly: other compose files in the same project directory belong to
+# environments that this script must not touch.
+COMPOSE=(docker compose -f "{{ app.compose_file }}")
+{% else %}
+COMPOSE=(docker compose)
+{% endif %}
+
+# The GitHub key is pinned in the ssh config of the user that owns the
+# checkout, so git has to run as that user.
+export GIT_SSH_COMMAND="ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
+
+log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"; }
+
+if [ "$(id -un)" != "$RUN_USER" ]; then
+    log "ERROR: run this script as ${RUN_USER}, not as $(id -un). Use: sudo -u ${RUN_USER} $0"
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Source
+# ---------------------------------------------------------------------------
+cd "$SOURCE_PATH"
+
+commit_before=$(git rev-parse --short HEAD)
+log "current commit ${commit_before}"
+
+log "fetching origin/${BRANCH}"
+git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
+
+# `reset --hard` matches the playbook, which clones with force: true. It drops
+# local edits to tracked files only, so untracked runtime state in the working
+# tree (data/, node_modules/, the rendered env files) survives.
+git reset --hard "origin/${BRANCH}"
+commit_after=$(git rev-parse --short HEAD)
+
+if [ "$commit_before" = "$commit_after" ]; then
+    log "already at ${commit_after}; the rebuild below still applies base image changes"
+else
+    log "moved ${commit_before} -> ${commit_after}"
+fi
+
+# ---------------------------------------------------------------------------
+# Containers
+# ---------------------------------------------------------------------------
+cd "$PROJECT_PATH"
+{% if app.database_service %}
+
+# The runtime image only starts the server, it never migrates. An unmigrated
+# database answers every request with 500, so the database comes up alone, the
+# migration runs, and only then the app starts.
+log "starting {{ app.database_service }}"
+"${COMPOSE[@]}" up -d --wait {{ app.database_service }}
+{% endif %}
+{% if app.migrate_service %}
+
+log "building {{ app.migrate_service }}"
+"${COMPOSE[@]}" build {{ app.migrate_service }}
+
+log "applying database migrations"
+"${COMPOSE[@]}" run --rm --no-deps {{ app.migrate_service }} {{ app.migrate_command }}
+{% endif %}
+
+# No --remove-orphans: containers of the unmanaged environments share this
+# compose project name and must survive.
+log "building and starting the containers"
+"${COMPOSE[@]}" up -d --build
+
+# ---------------------------------------------------------------------------
+# Check
+# ---------------------------------------------------------------------------
+log "waiting for ${HEALTH_HOST}:${HEALTH_PORT}"
+deadline=$(($(date +%s) + HEALTH_TIMEOUT))
+until (exec 3<>"/dev/tcp/${HEALTH_HOST}/${HEALTH_PORT}") 2>/dev/null; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+        log "ERROR: no answer on ${HEALTH_HOST}:${HEALTH_PORT} within ${HEALTH_TIMEOUT}s"
+        "${COMPOSE[@]}" ps
+        exit 1
+    fi
+    sleep 3
+done
+
+# Each rebuild leaves the previous image untagged. Untagged images that no
+# container uses are the only ones this removes.
+reclaimed=$(docker image prune --force 2>/dev/null | tail -n 1) || reclaimed="image prune failed"
+log "$reclaimed"
+log "root filesystem: $(df -h / | awk 'NR == 2 { print $4 " free, " $5 " used" }')"
+
+log "{{ app.display_name }} answers on ${HEALTH_HOST}:${HEALTH_PORT} at commit ${commit_after}"

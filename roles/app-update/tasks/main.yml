@@ -1,0 +1,121 @@
+---
+# =============================================================================
+# App Update Buttons for Home Assistant
+# =============================================================================
+# Turns a manual "ssh in and redeploy the app" into one button in Home
+# Assistant. A listener service subscribes to the mosquitto broker of the
+# home-assistant role, announces the buttons through MQTT Discovery, and runs
+# the update script of the pressed app on the host.
+#
+# The scripts only move the checkout and rebuild the containers. Every rendered
+# file (compose.yml, env.production) stays owned by the playbook, so a change
+# of a template still needs an ansible run.
+# =============================================================================
+
+- name: Install the MQTT client and the JSON tool
+  ansible.builtin.apt:
+    name:
+      - mosquitto-clients
+      - jq
+    state: present
+    update_cache: false
+
+- name: Create the pi-playbook configuration directory
+  ansible.builtin.file:
+    path: "{{ app_update.env_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+# Shared with the other roles, so it keeps the same mode as in boot-notify.
+# 0755 lets the listener, which runs unprivileged, reach its subdirectory.
+- name: Create the pi-playbook state directory
+  ansible.builtin.file:
+    path: "{{ app_update.state_directory | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# The listener writes the status, the attributes and the log of each app here,
+# so Home Assistant shows the last result again after a restart.
+- name: Create the app update state directory
+  ansible.builtin.file:
+    path: "{{ app_update.state_directory }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0750"
+
+- name: Install the MQTT credentials
+  ansible.builtin.template:
+    src: app-update.env.j2
+    dest: "{{ app_update.env_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart app update listener
+
+- name: Install the app update scripts
+  ansible.builtin.template:
+    src: update-app.sh.j2
+    dest: "/usr/local/bin/update-{{ item.key }}.sh"
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ app_update.apps | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  vars:
+    app_key: "{{ item.key }}"
+    app: "{{ item.value }}"
+
+- name: Install the app update listener
+  ansible.builtin.template:
+    src: app-update-listener.sh.j2
+    dest: "{{ app_update.listener_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart app update listener
+
+- name: Install the app update service
+  ansible.builtin.template:
+    src: app-update.service.j2
+    dest: /etc/systemd/system/app-update.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart app update listener
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable and start the app update listener
+  ansible.builtin.systemd:
+    name: app-update.service
+    enabled: true
+    state: started
+
+- name: Verify the app update service
+  ansible.builtin.command: systemd-analyze verify app-update.service
+  register: app_update_verify
+  changed_when: false
+  failed_when: app_update_verify.rc != 0
+
+- name: Display the app update setup
+  ansible.builtin.debug:
+    msg:
+      - "Update buttons published to Home Assistant over MQTT Discovery."
+      - "Apps: {{ app_update.apps.keys() | join(', ') }}"
+      - "Entities: one button and one status sensor for each app. Home Assistant
+         builds each entity id from the device name and the entity name, for
+         example button.pi_app_updates_update_snuglog and
+         sensor.pi_app_updates_snuglog_update_status."
+      - "Device in Home Assistant: {{ app_update.device_name }} (MQTT integration)"
+      - "Read a run with: journalctl -u app-update.service -f"
+      - "Run one by hand with: sudo -u {{ users.admin_user }} /usr/local/bin/update-<app>.sh"

@@ -176,6 +176,7 @@ journalctl -t immich-backup -t vaultwarden-backup -t sharepaste-backup -t snuglo
 - **qBittorrent with VPN**: Torrent client with WireGuard kill switch protection (local network only)
 - **Sharepaste**: Self-hosted clipboard sync, built from the `poalrom/sharepaste` repository (public)
 - **Snuglog**: Self-hosted household organiser, built from the private `poalrom/snuglog` repository (public)
+- **App update buttons**: one Home Assistant button for each self-built app (Sharepaste, Snuglog) that runs the update on the host
 
 ## 🔧 Service Access
 
@@ -689,6 +690,68 @@ boots stayed silent, so no reset goes unreported.
 `boot_notify.clock_wait_seconds` (60) for NTP. The message says so when the
 clock is still unsynchronised.
 
+### 14. App Update Buttons in Home Assistant
+
+Sharepaste and Snuglog are built from their git repositories, so a new commit
+needs a rebuild on the Pi. The `app-update` role turns that rebuild into one
+button for each app in Home Assistant.
+
+**How it works**:
+```bash
+# 1. app-update.service subscribes to the mosquitto broker as home-pi. That
+#    user owns the checkouts, holds the GitHub key and is in the docker group.
+# 2. It announces one button and one status sensor for each app over MQTT
+#    Discovery, so Home Assistant creates the entities without any YAML.
+# 3. A press publishes "update" to pi-playbook/app-update/<app>/set.
+# 4. The service runs /usr/local/bin/update-<app>.sh: fetch the newest commit,
+#    build the image, migrate (Snuglog only), start the containers, wait for
+#    the port, remove the images that the rebuild left untagged.
+# 5. The status sensor reports idle, running, success, failed, timeout or
+#    interrupted. Its attributes carry both commits, the duration and the last
+#    30 log lines.
+```
+
+**Entities** (device "Pi app updates" under the MQTT integration):
+
+| Entity | Purpose |
+|--------|---------|
+| `button.pi_app_updates_update_sharepaste` | Update Sharepaste |
+| `button.pi_app_updates_update_snuglog` | Update Snuglog |
+| `sensor.pi_app_updates_sharepaste_update_status` | Result of the last Sharepaste update |
+| `sensor.pi_app_updates_snuglog_update_status` | Result of the last Snuglog update |
+
+**Operate it**:
+```bash
+# Deploy
+ansible-playbook -i inventory.yml site.yml --tags app-update
+
+# Watch a run
+ssh -p 2312 home-pi@PI_IP "journalctl -u app-update.service -f"
+
+# Run the same update without Home Assistant
+ssh -p 2312 home-pi@PI_IP "/usr/local/bin/update-snuglog.sh"
+
+# Press the button from a shell on the Pi
+ssh -p 2312 home-pi@PI_IP "mosquitto_pub -h 127.0.0.1 -u <mqtt_user> \
+    -P <mqtt_password> -t pi-playbook/app-update/snuglog/set -m update"
+```
+
+**Limits**:
+- The button only moves the checkout and rebuilds the containers. `compose.yml`,
+  `env.production` and every other rendered file stay owned by the playbook, so
+  a template change still needs an ansible run.
+- One update runs at a time. Presses that arrive during a run are dropped: the
+  run they would start rebuilds the commit that the finished run already built.
+- `git reset --hard origin/<branch>` drops local edits to tracked files in the
+  checkout, exactly like the playbook does. Untracked runtime state (`data/`,
+  `node_modules/`, the rendered env files) survives.
+- "interrupted" means the service restarted while an update was running. The
+  containers can be in any state; read the journal before the next press.
+- The MQTT password reaches `mosquitto_sub` as a command line argument, so any
+  local account can read it with `ps`. Only root and `home-pi` have an account
+  on this host. The environment file itself is root-only.
+- A new app needs one entry under `app_update.apps` in `group_vars/all.yml`.
+
 ## 🛠️ Selective Deployment
 
 Deploy specific components using tags:
@@ -753,6 +816,9 @@ ansible-playbook -i inventory.yml site.yml --tags ddns
 
 # Boot notification via Telegram
 ansible-playbook -i inventory.yml site.yml --tags boot-notify
+
+# App update buttons in Home Assistant
+ansible-playbook -i inventory.yml site.yml --tags app-update
 ```
 
 ## 📌 Image Version Management

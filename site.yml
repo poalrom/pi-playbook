@@ -86,6 +86,11 @@
       when: snuglog_db_password != ""
       tags: ["snuglog"]
 
+    # Needs the mosquitto broker of the home-assistant role and the checkouts
+    # of the apps it updates, so it comes after all of them.
+    - role: app-update
+      tags: ["app-update"]
+
     - role: nginx-proxy-manager
       tags: ["nginx"]
 

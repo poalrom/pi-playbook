@@ -1,0 +1,269 @@
+#!/usr/bin/env bash
+# =============================================================================
+# App Update Listener - Home Assistant button to host update
+# =============================================================================
+# Publishes one MQTT Discovery button and one status sensor for each app, then
+# runs the update script of an app when its button is pressed.
+#
+# The broker is the mosquitto container of the home-assistant role. It uses
+# host networking, so the loopback address reaches it. The credentials come
+# from the systemd environment file, which only root reads.
+#
+# One update runs at a time, because the read loop is serial. Presses that
+# queue during a run are dropped: the run they would start rebuilds the same
+# commit that the finished run already built.
+#
+# Availability is a Last Will message. A crash, a stop or a broker restart
+# therefore marks every entity unavailable without help from this script.
+# =============================================================================
+
+set -u
+
+APPS="{{ app_update.apps.keys() | join(' ') }}"
+BROKER_HOST="{{ app_update.mqtt.host }}"
+BROKER_PORT="{{ app_update.mqtt.port }}"
+TOPIC_PREFIX="{{ app_update.mqtt.topic_prefix }}"
+DISCOVERY_PREFIX="{{ app_update.mqtt.discovery_prefix }}"
+DEVICE_ID="{{ app_update.device_id }}"
+DEVICE_NAME="{{ app_update.device_name }}"
+STATE_DIR="{{ app_update.state_directory }}"
+RUN_TIMEOUT={{ app_update.run_timeout }}
+AVAILABILITY_TOPIC="${TOPIC_PREFIX}/availability"
+
+log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"; }
+
+if [ -z "${MQTT_USERNAME:-}" ] || [ -z "${MQTT_PASSWORD:-}" ]; then
+    log "ERROR: no MQTT credentials in the environment file {{ app_update.env_file }}"
+    exit 1
+fi
+
+mkdir -p "$STATE_DIR"
+
+# ---------------------------------------------------------------------------
+# Per-app facts. The playbook writes one branch for each managed app.
+# ---------------------------------------------------------------------------
+source_path_of() {
+    case "$1" in
+{% for app_key, app in app_update.apps.items() %}
+    {{ app_key }}) printf '%s' "{{ app.source_path }}" ;;
+{% endfor %}
+    *) printf '%s' "" ;;
+    esac
+}
+
+display_name_of() {
+    case "$1" in
+{% for app_key, app in app_update.apps.items() %}
+    {{ app_key }}) printf '%s' "{{ app.display_name }}" ;;
+{% endfor %}
+    *) printf '%s' "$1" ;;
+    esac
+}
+
+commit_of() {
+    local path
+    path=$(source_path_of "$1")
+    git -C "$path" rev-parse --short HEAD 2>/dev/null || printf 'unknown'
+}
+
+# ---------------------------------------------------------------------------
+# MQTT
+# ---------------------------------------------------------------------------
+publish() { # topic payload [retain]
+    local topic="$1" payload="$2" retain="${3:-}"
+    if [ -n "$retain" ]; then
+        mosquitto_pub -h "$BROKER_HOST" -p "$BROKER_PORT" \
+            -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
+            -t "$topic" -m "$payload" -r || log "WARNING: publish to $topic failed"
+    else
+        mosquitto_pub -h "$BROKER_HOST" -p "$BROKER_PORT" \
+            -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
+            -t "$topic" -m "$payload" || log "WARNING: publish to $topic failed"
+    fi
+}
+
+device_json() {
+    jq -nc --arg id "$DEVICE_ID" --arg name "$DEVICE_NAME" \
+        '{identifiers: [$id], name: $name, manufacturer: "pi-playbook", model: "Raspberry Pi home server"}'
+}
+
+publish_discovery() {
+    local app display
+    for app in $APPS; do
+        display=$(display_name_of "$app")
+        publish "${DISCOVERY_PREFIX}/button/${DEVICE_ID}/${app}/config" "$(
+            jq -nc \
+                --arg name "Update ${display}" \
+                --arg unique_id "${DEVICE_ID}_${app}" \
+                --arg command_topic "${TOPIC_PREFIX}/${app}/set" \
+                --arg availability_topic "$AVAILABILITY_TOPIC" \
+                --argjson device "$(device_json)" \
+                '{name: $name,
+                  unique_id: $unique_id,
+                  command_topic: $command_topic,
+                  payload_press: "update",
+                  availability_topic: $availability_topic,
+                  icon: "mdi:cloud-download",
+                  device: $device}'
+        )" retain
+
+        publish "${DISCOVERY_PREFIX}/sensor/${DEVICE_ID}/${app}_status/config" "$(
+            jq -nc \
+                --arg name "${display} update status" \
+                --arg unique_id "${DEVICE_ID}_${app}_status" \
+                --arg state_topic "${TOPIC_PREFIX}/${app}/status" \
+                --arg attributes_topic "${TOPIC_PREFIX}/${app}/attributes" \
+                --arg availability_topic "$AVAILABILITY_TOPIC" \
+                --argjson device "$(device_json)" \
+                '{name: $name,
+                  unique_id: $unique_id,
+                  state_topic: $state_topic,
+                  json_attributes_topic: $attributes_topic,
+                  availability_topic: $availability_topic,
+                  icon: "mdi:progress-check",
+                  device: $device}'
+        )" retain
+    done
+    log "published discovery for: $APPS"
+}
+
+# ---------------------------------------------------------------------------
+# State. The status of each app survives a restart of this service and of the
+# broker, because the state directory holds the last published values.
+# ---------------------------------------------------------------------------
+attributes_json() { # app result started finished duration commit_before commit_after
+    jq -nc \
+        --arg result "$2" \
+        --arg started "$3" \
+        --arg finished "$4" \
+        --argjson duration_seconds "$5" \
+        --arg commit_before "$6" \
+        --arg commit_after "$7" \
+        --arg log_tail "$(tail -n 30 "${STATE_DIR}/$1.log" 2>/dev/null)" \
+        '{result: $result,
+          started: $started,
+          finished: $finished,
+          duration_seconds: $duration_seconds,
+          commit_before: $commit_before,
+          commit_after: $commit_after,
+          log_tail: $log_tail}'
+}
+
+set_state() { # app status attributes
+    printf '%s\n' "$2" >"${STATE_DIR}/$1.status"
+    printf '%s\n' "$3" >"${STATE_DIR}/$1.attributes.json"
+    publish "${TOPIC_PREFIX}/$1/status" "$2" retain
+    publish "${TOPIC_PREFIX}/$1/attributes" "$3" retain
+}
+
+restore_state() {
+    local app status attributes
+    for app in $APPS; do
+        status=$(cat "${STATE_DIR}/${app}.status" 2>/dev/null) || status=""
+        attributes=$(cat "${STATE_DIR}/${app}.attributes.json" 2>/dev/null) || attributes=""
+        if [ -z "$status" ] || [ -z "$attributes" ]; then
+            status="idle"
+            attributes=$(attributes_json "$app" idle "" "" 0 "" "$(commit_of "$app")")
+        elif [ "$status" = "running" ]; then
+            # No run survives a restart of this service, so the stored
+            # "running" belongs to a killed run.
+            status="interrupted"
+            attributes=$(printf '%s' "$attributes" | jq -c '.result = "interrupted"')
+        fi
+        set_state "$app" "$status" "$attributes"
+    done
+}
+
+# ---------------------------------------------------------------------------
+# Update
+# ---------------------------------------------------------------------------
+run_update() { # app
+    local app="$1"
+    local script="/usr/local/bin/update-${app}.sh"
+    local log_file="${STATE_DIR}/${app}.log"
+    local started_epoch started finished_epoch finished duration
+    local commit_before commit_after status exit_code
+
+    if [ ! -x "$script" ]; then
+        log "ERROR: no update script at ${script}"
+        return
+    fi
+
+    started_epoch=$(date +%s)
+    started=$(date -d "@${started_epoch}" '+%Y-%m-%d %H:%M:%S')
+    commit_before=$(commit_of "$app")
+    : >"$log_file"
+    set_state "$app" running \
+        "$(attributes_json "$app" running "$started" "" 0 "$commit_before" "$commit_before")"
+    log "${app}: update started at commit ${commit_before}"
+
+    # stdin comes from the broker pipe, so the script must not read it.
+    timeout --signal=TERM --kill-after=60 "$RUN_TIMEOUT" "$script" \
+        </dev/null >"$log_file" 2>&1
+    exit_code=$?
+
+    finished_epoch=$(date +%s)
+    finished=$(date -d "@${finished_epoch}" '+%Y-%m-%d %H:%M:%S')
+    duration=$((finished_epoch - started_epoch))
+    commit_after=$(commit_of "$app")
+
+    case "$exit_code" in
+    0) status="success" ;;
+    124 | 137) status="timeout" ;;
+    *) status="failed" ;;
+    esac
+
+    # The whole run also belongs in the journal, so `journalctl -u
+    # app-update.service` explains a failure without the state directory.
+    sed "s/^/${app}: /" "$log_file"
+    log "${app}: update ${status} after ${duration}s at commit ${commit_after} (exit ${exit_code})"
+
+    set_state "$app" "$status" \
+        "$(attributes_json "$app" "$status" "$started" "$finished" "$duration" "$commit_before" "$commit_after")"
+}
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+trap 'publish "$AVAILABILITY_TOPIC" offline retain; exit 0' TERM INT
+
+publish "$AVAILABILITY_TOPIC" online retain
+publish_discovery
+restore_state
+log "listening on ${TOPIC_PREFIX}/+/set at ${BROKER_HOST}:${BROKER_PORT}"
+
+mosquitto_sub -h "$BROKER_HOST" -p "$BROKER_PORT" \
+    -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
+    -t "${TOPIC_PREFIX}/+/set" -F '%t %p' \
+    --will-topic "$AVAILABILITY_TOPIC" --will-payload offline --will-retain |
+    while read -r topic payload; do
+        app=${topic#"${TOPIC_PREFIX}/"}
+        app=${app%/set}
+
+        case " $APPS " in
+        *" $app "*) ;;
+        *)
+            log "ignored a press for the unknown app '${app}'"
+            continue
+            ;;
+        esac
+
+        if [ "$payload" != "update" ]; then
+            log "ignored the payload '${payload}' on ${topic}"
+            continue
+        fi
+
+        run_update "$app"
+
+        # Drop the presses that queued in the pipe during the run.
+        dropped=0
+        while read -r -t 1 _; do
+            dropped=$((dropped + 1))
+        done
+        if [ "$dropped" -gt 0 ]; then
+            log "dropped ${dropped} press(es) that arrived during the run"
+        fi
+    done
+
+log "the broker connection ended; systemd restarts this service"
+exit 1

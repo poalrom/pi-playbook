@@ -267,6 +267,11 @@ snuglog:
   domain: "snuglog.{{ ddns_domain }}"
   source_path: "{{ docker.stacks_directory }}/snuglog"
   compose_file: "docker-compose.production.yml"
+  # Compose service name of the production app container. The role builds this
+  # service, and the database migration runs inside it.
+  app_service: "app-production"
+  # The runtime image only starts the server, so the migration is its own run.
+  migrate_command: "npm run db:migrate"
   repo_url: "git@github.com:poalrom/snuglog.git"
   repo_branch: "main"
   deploy_key_path: "/home/{{ users.admin_user }}/.ssh/snuglog_deploy"
@@ -297,6 +302,66 @@ snuglog:
     retention_days: 3
     rclone_path: "snuglog-backups"
     log_file: "{{ log_directory }}/snuglog-backup-rclone.log"
+
+# Home Assistant Update Buttons
+# =============================================================================
+# Each app below gets one MQTT Discovery button and one status sensor in Home
+# Assistant. A press runs the update script of that app on the host: fetch the
+# newest commit, rebuild the image, migrate, restart the containers.
+#
+# The button never renders a template. compose.yml, env.production and every
+# other rendered file stay owned by this playbook, so a change there still
+# needs an ansible run.
+app_update:
+  listener_script_path: "/usr/local/bin/app-update-listener.sh"
+  env_file: "/etc/pi-playbook/app-update.env"
+  # Holds the last status, the last attributes and the last log of each app.
+  # The root filesystem keeps it, so a missing external disk cannot break it.
+  state_directory: "/var/lib/pi-playbook/app-update"
+  # A build on this board takes minutes. The limit only stops a hung run.
+  run_timeout: 2400
+  # Seconds to wait for the app port after the containers start.
+  health_timeout: 180
+  mqtt:
+    # The mosquitto container of the home-assistant role uses host networking.
+    host: "127.0.0.1"
+    port: "{{ home_assistant.mqtt.port }}"
+    topic_prefix: "pi-playbook/app-update"
+    # Must match the discovery prefix of the Home Assistant MQTT integration.
+    discovery_prefix: "homeassistant"
+  device_id: "pi_app_update"
+  device_name: "Pi app updates"
+  apps:
+    sharepaste:
+      display_name: "Sharepaste"
+      # Git checkout.
+      source_path: "{{ sharepaste.source_path }}"
+      repo_branch: "{{ sharepaste.repo_branch }}"
+      # Compose project directory. It holds the rendered compose.yml, which
+      # builds from ./source/server.
+      project_path: "{{ sharepaste.config_path }}"
+      # Empty, because the project directory holds a single compose.yml.
+      compose_file: ""
+      database_service: ""
+      migrate_service: ""
+      migrate_command: ""
+      health_host: "127.0.0.1"
+      health_port: "{{ sharepaste.port }}"
+    snuglog:
+      display_name: "Snuglog"
+      # The checkout is also the compose project directory.
+      source_path: "{{ snuglog.source_path }}"
+      repo_branch: "{{ snuglog.repo_branch }}"
+      project_path: "{{ snuglog.source_path }}"
+      # Named explicitly, because the unmanaged staging environment shares the
+      # "snuglog" compose project name.
+      compose_file: "{{ snuglog.compose_file }}"
+      # The runtime image never migrates, so the database starts alone first.
+      database_service: "{{ snuglog.db.host }}"
+      migrate_service: "{{ snuglog.app_service }}"
+      migrate_command: "{{ snuglog.migrate_command }}"
+      health_host: "{{ network.pi_ip }}"
+      health_port: "{{ snuglog.port }}"
 
 # Torrent VPN Configuration
 torrent_vpn:

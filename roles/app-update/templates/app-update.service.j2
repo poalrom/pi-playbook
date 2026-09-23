@@ -1,0 +1,25 @@
+[Unit]
+Description=Run app update scripts on a Home Assistant button press
+# The broker is a Docker container, so the daemon has to run first. The unit
+# does not require it: mosquitto_sub exits when the broker is absent, and the
+# restart below waits for it.
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# The same user owns the checkouts, holds the GitHub key in ~/.ssh/config and
+# belongs to the docker group. git and docker therefore need no privilege here.
+User={{ users.admin_user }}
+# systemd reads this file as root, so the MQTT password stays unreadable for
+# every other account.
+EnvironmentFile={{ app_update.env_file }}
+ExecStart={{ app_update.listener_script_path }}
+# A broker restart ends mosquitto_sub. Come back for the next press.
+Restart=always
+RestartSec=10
+# An update may build for many minutes. The script owns its own time limit.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

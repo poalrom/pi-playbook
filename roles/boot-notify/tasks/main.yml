@@ -15,13 +15,17 @@
     group: root
     mode: "0750"
 
+# /var/lib/pi-playbook is shared with the other roles. 0755 lets a service that
+# runs as an unprivileged user reach its own subdirectory. The files below stay
+# root-owned, and this directory holds no secret: the credentials live in
+# /etc/pi-playbook, which stays 0750.
 - name: Create the boot notification state directory
   ansible.builtin.file:
     path: "{{ boot_notify.state_file | dirname }}"
     state: directory
     owner: root
     group: root
-    mode: "0750"
+    mode: "0755"
 
 - name: Install the Telegram credentials
   ansible.builtin.template:

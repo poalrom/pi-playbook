@@ -34,13 +34,13 @@
 # command can tell a real change from a no-op.
 - name: Build snuglog production app image
   ansible.builtin.command:
-    cmd: docker compose -f {{ snuglog.compose_file }} build app-production
+    cmd: docker compose -f {{ snuglog.compose_file }} build {{ snuglog.app_service }}
     chdir: "{{ snuglog.source_path }}"
   changed_when: false
 
 - name: Apply snuglog database migrations
   ansible.builtin.command:
-    cmd: docker compose -f {{ snuglog.compose_file }} run --rm --no-deps app-production npm run db:migrate
+    cmd: docker compose -f {{ snuglog.compose_file }} run --rm --no-deps {{ snuglog.app_service }} {{ snuglog.migrate_command }}
     chdir: "{{ snuglog.source_path }}"
   register: snuglog_migrate
   changed_when: false
