@@ -1,0 +1,52 @@
+---
+# =============================================================================
+# GitHub Container Registry login
+# =============================================================================
+# The snuglog package is private, so an anonymous pull answers 401. The login
+# writes ~/.docker/config.json of the admin user, which is also the user that
+# the app-update listener runs as, so the update button can pull as well.
+#
+# The token is only needed once for each host. A host that already holds the
+# credentials converges with an empty ghcr_token.
+# =============================================================================
+
+- name: Check for an existing docker registry login
+  ansible.builtin.stat:
+    path: "/home/{{ users.admin_user }}/.docker/config.json"
+  register: snuglog_docker_config
+
+- name: Read the existing docker registry login
+  ansible.builtin.slurp:
+    src: "/home/{{ users.admin_user }}/.docker/config.json"
+  register: snuglog_docker_config_contents
+  when: snuglog_docker_config.stat.exists
+  no_log: true
+
+- name: Determine whether the host can already reach the registry
+  ansible.builtin.set_fact:
+    snuglog_registry_logged_in: >-
+      {{ snuglog_docker_config.stat.exists and
+         snuglog.registry.url in
+         ((snuglog_docker_config_contents.content | default('') | b64decode | from_json).auths | default({})) }}
+
+- name: Require a way to reach the container registry
+  ansible.builtin.assert:
+    that: ghcr_token != "" or snuglog_registry_logged_in
+    fail_msg: >-
+      Production runs the image from {{ snuglog.registry.repository }}, which is
+      private. Put a GitHub token with the read:packages scope in vault.yml as
+      ghcr_token, or log the Pi in once with
+      "docker login {{ snuglog.registry.url }} -u {{ snuglog.registry.username }} --password-stdin".
+
+- name: Log the host in to the container registry
+  ansible.builtin.command:
+    cmd: docker login {{ snuglog.registry.url }} --username {{ snuglog.registry.username }} --password-stdin
+    stdin: "{{ ghcr_token }}"
+  become: true
+  become_user: "{{ users.admin_user }}"
+  register: snuglog_registry_login
+  changed_when: not snuglog_registry_logged_in
+  when:
+    - ghcr_token != ""
+    - not snuglog_registry_logged_in
+  no_log: true

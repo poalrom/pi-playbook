@@ -4,7 +4,8 @@
 # =============================================================================
 # Moves the checkout to the newest commit of "{{ app.repo_branch }}" and
 # restarts the containers from it. This is the manual deploy of
-# {{ app_key }}, written down: fetch, build{% if app.migrate_service %}, migrate{% endif %}, start, check the port.
+# {{ app_key }}, written down: fetch, {% if app.image_repository %}pull the image CI built{% else %}build{% endif %}{% if app.migrate_service %}, migrate{% endif %}, start,
+# check the port.
 #
 # Home Assistant runs this script through {{ app_update.listener_script_path }}.
 # An operator can run the same script over SSH.
@@ -22,6 +23,12 @@ BRANCH="{{ app.repo_branch }}"
 HEALTH_HOST="{{ app.health_host }}"
 HEALTH_PORT="{{ app.health_port }}"
 HEALTH_TIMEOUT={{ app_update.health_timeout }}
+{% if app.image_repository %}
+IMAGE_REPOSITORY="{{ app.image_repository }}"
+IMAGE_TAG_PREFIX="{{ app.image_tag_prefix }}"
+TAG_ENV_FILE="{{ app.image_tag_env_file }}"
+TAG_VARIABLE="{{ app.image_tag_variable }}"
+{% endif %}
 
 {% if app.compose_file %}
 # Named explicitly: other compose files in the same project directory belong to
@@ -32,7 +39,8 @@ COMPOSE=(docker compose)
 {% endif %}
 
 # The GitHub key is pinned in the ssh config of the user that owns the
-# checkout, so git has to run as that user.
+# checkout, so git has to run as that user. The same user holds the registry
+# login in ~/.docker/config.json.
 export GIT_SSH_COMMAND="ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"; }
@@ -60,27 +68,54 @@ git reset --hard "origin/${BRANCH}"
 commit_after=$(git rev-parse --short HEAD)
 
 if [ "$commit_before" = "$commit_after" ]; then
-    log "already at ${commit_after}; the rebuild below still applies base image changes"
+    log "already at ${commit_after}; the containers below still come up from it"
 else
     log "moved ${commit_before} -> ${commit_after}"
 fi
 
+cd "$PROJECT_PATH"
+{% if app.image_repository %}
+
+# ---------------------------------------------------------------------------
+# Image
+# ---------------------------------------------------------------------------
+# CI publishes one image for each commit on the branch, so the tag names the
+# commit this checkout now sits on. The code and the migrations can therefore
+# never come from different commits. Compose reads the tag from the env file,
+# so a compose command typed by hand runs the same image.
+image_tag="${IMAGE_TAG_PREFIX}$(git -C "$SOURCE_PATH" rev-parse HEAD)"
+printf '%s=%s\n' "$TAG_VARIABLE" "$image_tag" >"${PROJECT_PATH}/${TAG_ENV_FILE}"
+
+log "pulling ${IMAGE_REPOSITORY}:${image_tag}"
+if ! docker pull "${IMAGE_REPOSITORY}:${image_tag}"; then
+    log "ERROR: no image for commit ${commit_after}. CI may still be building it,"
+    log "       the build may have failed, or the registry login may be missing."
+    exit 1
+fi
+{% endif %}
+
 # ---------------------------------------------------------------------------
 # Containers
 # ---------------------------------------------------------------------------
-cd "$PROJECT_PATH"
 {% if app.database_service %}
-
 # The runtime image only starts the server, it never migrates. An unmigrated
 # database answers every request with 500, so the database comes up alone, the
-# migration runs, and only then the app starts.
+# migrations run, and only then the app starts.
 log "starting {{ app.database_service }}"
 "${COMPOSE[@]}" up -d --wait {{ app.database_service }}
 {% endif %}
-{% if app.migrate_service %}
+{% if app.migrate_service and not app.image_repository %}
 
 log "building {{ app.migrate_service }}"
 "${COMPOSE[@]}" build {{ app.migrate_service }}
+{% endif %}
+{% if app.bootstrap_command %}
+
+# Stamps a schema that predates the migration table. A no-op afterwards.
+log "stamping the baseline schema"
+"${COMPOSE[@]}" run --rm --no-deps {{ app.migrate_service }} {{ app.bootstrap_command }}
+{% endif %}
+{% if app.migrate_service %}
 
 log "applying database migrations"
 "${COMPOSE[@]}" run --rm --no-deps {{ app.migrate_service }} {{ app.migrate_command }}
@@ -88,8 +123,8 @@ log "applying database migrations"
 
 # No --remove-orphans: containers of the unmanaged environments share this
 # compose project name and must survive.
-log "building and starting the containers"
-"${COMPOSE[@]}" up -d --build
+log "starting the containers"
+"${COMPOSE[@]}" up -d{{ '' if app.image_repository else ' --build' }}
 
 # ---------------------------------------------------------------------------
 # Check
@@ -105,8 +140,8 @@ until (exec 3<>"/dev/tcp/${HEALTH_HOST}/${HEALTH_PORT}") 2>/dev/null; do
     sleep 3
 done
 
-# Each rebuild leaves the previous image untagged. Untagged images that no
-# container uses are the only ones this removes.
+# The previous image keeps no tag once a new one carries it. Untagged images
+# that no container uses are the only ones this removes.
 reclaimed=$(docker image prune --force 2>/dev/null | tail -n 1) || reclaimed="image prune failed"
 log "$reclaimed"
 log "root filesystem: $(df -h / | awk 'NR == 2 { print $4 " free, " $5 " used" }')"

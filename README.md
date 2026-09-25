@@ -175,8 +175,8 @@ journalctl -t immich-backup -t vaultwarden-backup -t sharepaste-backup -t snuglo
 - **Frigate**: NVR with 3-day continuous doorbell recording (local network only)
 - **qBittorrent with VPN**: Torrent client with WireGuard kill switch protection (local network only)
 - **Sharepaste**: Self-hosted clipboard sync, built from the `poalrom/sharepaste` repository (public)
-- **Snuglog**: Self-hosted household organiser, built from the private `poalrom/snuglog` repository (public)
-- **App update buttons**: one Home Assistant button for each self-built app (Sharepaste, Snuglog) that runs the update on the host
+- **Snuglog**: Self-hosted household organiser from the private `poalrom/snuglog` repository, running the image its CI publishes (public)
+- **App update buttons**: one Home Assistant button for each app that tracks a git repository (Sharepaste, Snuglog), which runs the update on the host
 
 ## 🔧 Service Access
 
@@ -608,8 +608,8 @@ docker exec sharepaste sharepaste user create <name>
 
 # The role clones the private repository https://github.com/poalrom/snuglog
 # over SSH into /opt/stacks/snuglog. That checkout is also the Docker Compose
-# project directory, because docker-compose.production.yml builds from "." and
-# binds "./data/production/postgres".
+# project directory, because docker-compose.production.yml binds
+# "./data/production/postgres".
 
 # The first run prints a deploy key and stops. Add the printed key at
 # https://github.com/poalrom/snuglog/settings/keys/new and re-run.
@@ -617,10 +617,31 @@ docker exec sharepaste sharepaste user create <name>
 # env.production is rendered from group_vars/all.yml and vault.yml. Never edit
 # it on the host: the next playbook run overwrites it.
 
-# The runtime image only starts the server. The role starts the database,
-# applies the drizzle migrations with a one-off container, and then starts the
-# app. An unmigrated database makes every request answer 500, because the
-# Better Auth MCP plugin reads its own tables during boot.
+# The app image is PULLED, never built here. The "Build image" workflow of the
+# app repository publishes ghcr.io/poalrom/snuglog:sha-<full commit> for each
+# commit on main. The role pulls the tag of the commit the checkout sits on,
+# so the running code always matches the migrations it applied. It writes the
+# tag into /opt/stacks/snuglog/.env, so a compose command typed by hand uses
+# the same image.
+
+# The package is private, so the Pi needs a registry login. Put a GitHub token
+# with the read:packages scope in vault.yml as ghcr_token; the role logs the
+# host in once. A host that is already logged in converges with an empty token.
+# docker keeps the token base64-encoded in /home/home-pi/.docker/config.json,
+# so read:packages is the only scope it may carry. The app update button uses
+# the same login, because its service runs as home-pi.
+
+# Roll back to an older image without touching the checkout:
+ansible-playbook -i inventory.yml site.yml --tags snuglog \
+    -e snuglog_image_tag=sha-<full commit>
+
+# A pull of a commit that CI has not published yet fails on purpose. Check the
+# "Build image" run for that commit first; it takes about three minutes.
+
+# The image only starts the server. The role starts the database, stamps the
+# baseline schema, applies the drizzle migrations with one-off containers, and
+# then starts the app. An unmigrated database makes every request answer 500,
+# because the Better Auth MCP plugin reads its own tables during boot.
 
 # Postgres cluster: /opt/stacks/snuglog/data/production/postgres (SD card;
 # the external disk is exFAT and cannot hold postgres file ownership).
@@ -692,9 +713,9 @@ clock is still unsynchronised.
 
 ### 14. App Update Buttons in Home Assistant
 
-Sharepaste and Snuglog are built from their git repositories, so a new commit
-needs a rebuild on the Pi. The `app-update` role turns that rebuild into one
-button for each app in Home Assistant.
+Sharepaste and Snuglog follow their git repositories, so a new commit needs a
+rebuild (Sharepaste) or an image pull (Snuglog) on the Pi. The `app-update`
+role turns that into one button for each app in Home Assistant.
 
 **How it works**:
 ```bash
@@ -704,8 +725,11 @@ button for each app in Home Assistant.
 #    Discovery, so Home Assistant creates the entities without any YAML.
 # 3. A press publishes "update" to pi-playbook/app-update/<app>/set.
 # 4. The service runs /usr/local/bin/update-<app>.sh: fetch the newest commit,
-#    build the image, migrate (Snuglog only), start the containers, wait for
-#    the port, remove the images that the rebuild left untagged.
+#    build the image (Sharepaste) or pull the image CI published for that
+#    commit (Snuglog), migrate (Snuglog only), start the containers, wait for
+#    the port, remove the images left untagged.
+# 4b. A Snuglog press right after a push fails while CI is still building that
+#    commit. The build takes about three minutes; press again afterwards.
 # 5. The status sensor reports idle, running, success, failed, timeout or
 #    interrupted. Its attributes carry both commits, the duration and the last
 #    30 log lines.
@@ -805,8 +829,10 @@ ansible-playbook -i inventory.yml site.yml --tags sharepaste
 # Household organiser
 ansible-playbook -i inventory.yml site.yml --tags snuglog
 
-# Note: Sharepaste and Snuglog build from GitHub. The first run prints a deploy
-# key and stops if the Pi cannot authenticate to GitHub yet.
+# Note: both clone from GitHub. The first run prints a deploy key and stops if
+# the Pi cannot authenticate to GitHub yet. Sharepaste builds its image on the
+# host; Snuglog pulls the image that its CI published for the deployed commit,
+# which needs ghcr_token in vault.yml.
 
 # Torrent client with VPN (requires VPN config file)
 ansible-playbook -i inventory.yml site.yml --tags torrent
@@ -850,6 +876,11 @@ behind upstream before the pins were introduced.
 The Immich database and cache images stay pinned by digest in
 `roles/immich/templates/docker-compose.yml.j2`, because Immich ties the
 VectorChord extension version to the server version.
+
+Snuglog carries no version variable. Its tag is derived from the deployed
+commit (`sha-<full commit>`), because CI publishes one image for each commit.
+The role writes the resolved tag into `/opt/stacks/snuglog/.env`. Roll back
+with `-e snuglog_image_tag=sha-<full commit>`.
 
 ### Upgrade procedure
 

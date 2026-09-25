@@ -5,6 +5,9 @@
 #
 # `remove_orphans` stays off on purpose: the unmanaged staging containers share
 # this project name and must not be torn down by a production deploy.
+#
+# The app image is pulled, never built. The "Build image" workflow of the app
+# repository publishes one image for each commit on main.
 
 - name: Render snuglog env.production
   ansible.builtin.template:
@@ -14,6 +17,50 @@
     group: "{{ users.admin_user }}"
     mode: "0600"
   notify: Restart snuglog
+
+# The tag names the commit that the checkout now sits on, so the running code
+# can never differ from the compose file and the migrations of this deploy.
+# Pass -e snuglog_image_tag=sha-<full commit> to roll back to an older image.
+- name: Resolve the snuglog production image tag
+  ansible.builtin.set_fact:
+    snuglog_resolved_image_tag: >-
+      {{ snuglog_image_tag | default(snuglog.registry.tag_prefix ~ snuglog_source_state.after, true) }}
+
+# Compose substitutes the tag from this file, so a compose command that an
+# operator types in the project directory runs the same image as the deploy.
+- name: Pin the image tag for compose
+  ansible.builtin.copy:
+    content: "{{ snuglog.registry.tag_variable }}={{ snuglog_resolved_image_tag }}\n"
+    dest: "{{ snuglog.source_path }}/{{ snuglog.registry.tag_env_file }}"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+  notify: Restart snuglog
+
+- name: Check whether the production image is already on the host
+  ansible.builtin.command:
+    cmd: docker image inspect {{ snuglog.registry.repository }}:{{ snuglog_resolved_image_tag }}
+  register: snuglog_image_present
+  changed_when: false
+  failed_when: false
+
+# A missing image means CI has not published this commit yet, or the build
+# failed. Say so instead of letting compose report a bare "manifest unknown".
+- name: Pull the snuglog production image
+  ansible.builtin.command:
+    cmd: docker pull {{ snuglog.registry.repository }}:{{ snuglog_resolved_image_tag }}
+  become: true
+  become_user: "{{ users.admin_user }}"
+  register: snuglog_image_pull
+  changed_when: snuglog_image_pull.rc == 0
+  failed_when: snuglog_image_pull.rc != 0
+  when: snuglog_image_present.rc != 0
+
+- name: Report the image in use
+  ansible.builtin.debug:
+    msg: >-
+      Snuglog production image {{ snuglog.registry.repository }}:{{ snuglog_resolved_image_tag }}
+      ({{ 'pulled now' if snuglog_image_present.rc != 0 else 'already on the host' }})
 
 # The runtime image only starts the server; it never migrates. The Better Auth
 # MCP plugin reads its own tables during boot, so an unmigrated database makes
@@ -29,33 +76,42 @@
     state: present
     wait: true
 
-# The image build and the migration both report "ok" on purpose. Docker and
-# drizzle-kit print the same text whether or not work was needed, so neither
-# command can tell a real change from a no-op.
-- name: Build snuglog production app image
+# Both migration commands report "ok" on purpose: drizzle-kit prints the same
+# text whether or not work was needed, so neither run can tell a real change
+# from a no-op. The bootstrap stamps a schema that predates the migration
+# table and does nothing on every later run.
+- name: Stamp the snuglog baseline schema
   ansible.builtin.command:
-    cmd: docker compose -f {{ snuglog.compose_file }} build {{ snuglog.app_service }}
+    cmd: >-
+      docker compose -f {{ snuglog.compose_file }} run --rm --no-deps
+      {{ snuglog.app_service }} {{ snuglog.bootstrap_command }}
     chdir: "{{ snuglog.source_path }}"
+  become: true
+  become_user: "{{ users.admin_user }}"
+  register: snuglog_bootstrap
   changed_when: false
 
 - name: Apply snuglog database migrations
   ansible.builtin.command:
-    cmd: docker compose -f {{ snuglog.compose_file }} run --rm --no-deps {{ snuglog.app_service }} {{ snuglog.migrate_command }}
+    cmd: >-
+      docker compose -f {{ snuglog.compose_file }} run --rm --no-deps
+      {{ snuglog.app_service }} {{ snuglog.migrate_command }}
     chdir: "{{ snuglog.source_path }}"
+  become: true
+  become_user: "{{ users.admin_user }}"
   register: snuglog_migrate
   changed_when: false
 
 - name: Report migration output
   ansible.builtin.debug:
-    var: snuglog_migrate.stdout_lines
+    msg: "{{ snuglog_bootstrap.stdout_lines + snuglog_migrate.stdout_lines }}"
 
-- name: Build and start snuglog production
+- name: Start snuglog production
   community.docker.docker_compose_v2:
     project_src: "{{ snuglog.source_path }}"
     files:
       - "{{ snuglog.compose_file }}"
     state: present
-    build: always
 
 - name: Wait for snuglog to listen
   ansible.builtin.wait_for:
@@ -70,8 +126,10 @@
       - "Snuglog production is now running!"
       - "Local Access: http://{{ network.pi_ip }}:{{ snuglog.port }}"
       - "Public Domain: https://{{ snuglog.domain }} (proxied by Nginx Proxy Manager)"
+      - "Image: {{ snuglog.registry.repository }}:{{ snuglog_resolved_image_tag }}"
       - "Database Cluster: {{ snuglog.database_directory }}"
       - "Watchlist Images: {{ snuglog.images_directory }}"
       - "Source Directory: {{ snuglog.source_path }}"
       - "Database migrations are applied by this role before the app starts."
+      - "Roll back to an older image with: -e snuglog_image_tag=sha-<full commit>"
       - "After first deploy: enable SSL for {{ snuglog.domain }} in the NPM UI."

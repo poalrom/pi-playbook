@@ -37,7 +37,10 @@
 - name: Sync source from GitHub
   ansible.builtin.include_tasks: source.yml
 
-- name: Build and start service
+- name: Log in to the container registry
+  ansible.builtin.include_tasks: registry.yml
+
+- name: Pull the image and start the service
   ansible.builtin.include_tasks: service.yml
 
 - name: Configure backup

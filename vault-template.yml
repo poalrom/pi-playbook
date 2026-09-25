@@ -53,5 +53,11 @@ snuglog_alice_oauth_client_secret: "YOUR_SNUGLOG_ALICE_OAUTH_CLIENT_SECRET_HERE"
 snuglog_cerebras_api_key: "YOUR_CEREBRAS_API_KEY_HERE"
 snuglog_tmdb_api_key: "YOUR_TMDB_API_READ_ACCESS_TOKEN_HERE"
 
+# GitHub Container Registry, for the Snuglog production image
+# Create a classic token with the read:packages scope, or a fine-grained token
+# with read access to the snuglog package. An empty token is accepted only
+# while the Pi already holds a docker login for ghcr.io.
+ghcr_token: "YOUR_GITHUB_READ_PACKAGES_TOKEN_HERE"
+
 # Frigate Camera Streams
 frigate_doorbell_rtsp_url: "rtsp://username:password@192.168.178.37:88/videoMain"
