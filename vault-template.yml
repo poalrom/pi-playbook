@@ -60,4 +60,4 @@ snuglog_tmdb_api_key: "YOUR_TMDB_API_READ_ACCESS_TOKEN_HERE"
 ghcr_token: "YOUR_GITHUB_READ_PACKAGES_TOKEN_HERE"
 
 # Frigate Camera Streams
-frigate_doorbell_rtsp_url: "rtsp://username:password@192.168.178.37:88/videoMain"
+frigate_doorbell_rtsp_url: "rtsp://username:password@192.168.178.5:88/videoMain"
