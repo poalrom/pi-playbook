@@ -49,6 +49,18 @@ if [ "$(id -un)" != "$RUN_USER" ]; then
     log "ERROR: run this script as ${RUN_USER}, not as $(id -un). Use: sudo -u ${RUN_USER} $0"
     exit 1
 fi
+{% if app.storage_directories | default([]) %}
+
+# Migration containers carry the same image binds as the app. Prepare them
+# before any compose run, and never create directories on an unmounted disk.
+# shellcheck source=/dev/null
+. {{ storage_guard_script | quote }}
+require_storage_mount {{ app_key | quote }}-update
+{% for directory in app.storage_directories %}
+log {{ ('preparing image storage ' ~ directory) | quote }}
+mkdir -p -- {{ directory | quote }}
+{% endfor %}
+{% endif %}
 
 # ---------------------------------------------------------------------------
 # Source

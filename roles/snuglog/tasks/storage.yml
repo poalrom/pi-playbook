@@ -1,0 +1,21 @@
+---
+# Both migration containers and the app use these binds. Verify the disk before
+# mkdir: with nofail, its absence otherwise redirects image writes to the SD card.
+- name: Verify external storage for snuglog images
+  ansible.builtin.shell: |
+    . {{ storage_guard_script | quote }}
+    require_storage_mount snuglog-deploy
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Ensure snuglog image directories exist on external storage
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+  loop:
+    - "{{ snuglog.images_directory }}"
+    - "{{ snuglog.shopping_images_directory }}"

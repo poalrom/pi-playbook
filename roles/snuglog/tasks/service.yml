@@ -129,6 +129,7 @@
       - "Image: {{ snuglog.registry.repository }}:{{ snuglog_resolved_image_tag }}"
       - "Database Cluster: {{ snuglog.database_directory }}"
       - "Watchlist Images: {{ snuglog.images_directory }}"
+      - "Shopping Images: {{ snuglog.shopping_images_directory }}"
       - "Source Directory: {{ snuglog.source_path }}"
       - "Database migrations are applied by this role before the app starts."
       - "Roll back to an older image with: -e snuglog_image_tag=sha-<full commit>"

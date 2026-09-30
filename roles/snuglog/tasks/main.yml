@@ -22,13 +22,8 @@
     group: "{{ users.admin_user }}"
     mode: "0755"
 
-- name: Ensure snuglog watchlist image directory exists on external storage
-  ansible.builtin.file:
-    path: "{{ snuglog.images_directory }}"
-    state: directory
-    owner: "{{ users.admin_user }}"
-    group: "{{ users.admin_user }}"
-    mode: "0755"
+- name: Prepare snuglog image storage
+  ansible.builtin.include_tasks: storage.yml
 
 - name: Provision GitHub deploy key (only when not already authenticated)
   ansible.builtin.include_tasks: deploy-key.yml

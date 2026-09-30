@@ -2,12 +2,12 @@
 # =============================================================================
 # Storage mount guard
 # =============================================================================
-# Sourced by every backup script before it creates a directory or opens a log
-# file. The external disk is mounted with `nofail`, so the Raspberry Pi boots
-# without it whenever the enclosure is absent, is slow to appear, or the last
-# shutdown was unclean. Every backup directory and every backup log lives on
-# that disk. Without this guard a backup recreates the whole tree on the root
-# SD card and fills it.
+# Sourced by backup scripts and app deployments before they create directories
+# or write to the disk. The external disk is mounted with `nofail`, so the
+# Raspberry Pi boots without it whenever the enclosure is absent, is slow to
+# appear, or the last shutdown was unclean. Backups and app image storage live
+# on that disk. Without this guard their directories are recreated on the root
+# SD card and writes fill it.
 #
 # Use it before the first mkdir and before the first log redirection:
 #     . {{ storage_guard_script }}
@@ -39,7 +39,7 @@ require_storage_mount() {
     fi
 
     if [ -n "${reason}" ]; then
-        message="aborted: ${reason}. A backup here would fill the root SD card."
+        message="aborted: ${reason}. Writing here would fill the root SD card."
         printf '%s - ERROR: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "${message}" >&2
         printf 'ERROR: %s\n' "${message}" | logger -t "${tag}" -p user.err
         return 1

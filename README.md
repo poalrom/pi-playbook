@@ -646,8 +646,11 @@ ansible-playbook -i inventory.yml site.yml --tags snuglog \
 # Postgres cluster: /opt/stacks/snuglog/data/production/postgres (SD card;
 # the external disk is exFAT and cannot hold postgres file ownership).
 # Posters and frames: /media/pi/home/snuglog/production/watchlist-images
-# (external disk; the compose bind uses create_host_path: false, so the role
-# creates this directory before the app starts).
+# Shopping photos: /media/pi/home/snuglog/production/shopping-images
+# (external disk; both compose binds use create_host_path: false, so the role
+# checks the disk and creates these directories before migrations or app start).
+# WATCHLIST_IMAGE_DIR and SHOPPING_IMAGE_DIR in env.production point to their
+# mounted paths inside the container, so uploads survive container replacement.
 
 # Database backup: daily at 05:00, pg_dumpall to
 # /media/pi/home/backups/snuglog and rclone to yandex-disk:snuglog-backups.
@@ -728,6 +731,8 @@ role turns that into one button for each app in Home Assistant.
 #    build the image (Sharepaste) or pull the image CI published for that
 #    commit (Snuglog), migrate (Snuglog only), start the containers, wait for
 #    the port, remove the images left untagged.
+#    Snuglog checks the external disk and prepares both image directories
+#    before fetching code or starting migration containers.
 # 4b. A Snuglog press right after a push fails while CI is still building that
 #    commit. The build takes about three minutes; press again afterwards.
 # 5. The status sensor reports idle, running, success, failed, timeout or
@@ -775,6 +780,9 @@ ssh -p 2312 home-pi@PI_IP "mosquitto_pub -h 127.0.0.1 -u <mqtt_user> \
   local account can read it with `ps`. Only root and `home-pi` have an account
   on this host. The environment file itself is root-only.
 - A new app needs one entry under `app_update.apps` in `group_vars/all.yml`.
+- A release that adds an image bind needs its directory in the Snuglog role and
+  `app_update.apps.snuglog.storage_directories`, plus its container path in
+  `env.production`. Deploy those playbook changes before using the update button.
 
 ## 🛠️ Selective Deployment
 

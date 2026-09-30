@@ -303,8 +303,10 @@ snuglog:
   # The compose bind uses create_host_path: false, so this directory has to
   # exist before the app starts, otherwise the container refuses to come up.
   images_directory: "{{ storage.mount_point }}/snuglog/production/watchlist-images"
+  shopping_images_directory: "{{ storage.mount_point }}/snuglog/production/shopping-images"
   # Path inside the container; it has to match the compose bind mount target.
   container_images_directory: "/app/data/watchlist-images"
+  container_shopping_images_directory: "/app/data/shopping-images"
   db:
     user: "postgres"
     name: "snuglog"
@@ -389,6 +391,11 @@ app_update:
       image_tag_prefix: "{{ snuglog.registry.tag_prefix }}"
       image_tag_env_file: "{{ snuglog.registry.tag_env_file }}"
       image_tag_variable: "{{ snuglog.registry.tag_variable }}"
+      # Prepare both image binds before running a migration container. Docker
+      # deliberately refuses to create them when the external disk is absent.
+      storage_directories:
+        - "{{ snuglog.images_directory }}"
+        - "{{ snuglog.shopping_images_directory }}"
       # The image never migrates, so the database starts alone first.
       database_service: "{{ snuglog.db.host }}"
       migrate_service: "{{ snuglog.app_service }}"
