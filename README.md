@@ -647,10 +647,13 @@ ansible-playbook -i inventory.yml site.yml --tags snuglog \
 # the external disk is exFAT and cannot hold postgres file ownership).
 # Posters and frames: /media/pi/home/snuglog/production/watchlist-images
 # Shopping photos: /media/pi/home/snuglog/production/shopping-images
-# (external disk; both compose binds use create_host_path: false, so the role
+# Inventory photos: /media/pi/home/snuglog/production/inventory-images
+# (external disk; all three compose binds use create_host_path: false, so the role
 # checks the disk and creates these directories before migrations or app start).
 # WATCHLIST_IMAGE_DIR and SHOPPING_IMAGE_DIR in env.production point to their
 # mounted paths inside the container, so uploads survive container replacement.
+# INVENTORY_IMAGE_DIR is set by docker-compose.production.yml to
+# /app/data/inventory-images, backed by the inventory photos directory above.
 
 # Database backup: daily at 05:00, pg_dumpall to
 # /media/pi/home/backups/snuglog and rclone to yandex-disk:snuglog-backups.

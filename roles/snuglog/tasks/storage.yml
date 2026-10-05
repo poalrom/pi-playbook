@@ -19,3 +19,4 @@
   loop:
     - "{{ snuglog.images_directory }}"
     - "{{ snuglog.shopping_images_directory }}"
+    - "{{ snuglog.inventory_images_directory }}"
