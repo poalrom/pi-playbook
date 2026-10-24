@@ -1,0 +1,47 @@
+# Managed by Ansible. Use this file, not the upstream registry-based compose file.
+services:
+  app-production:
+    image: "{{ snuglog.image }}"
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: Dockerfile.security
+      labels:
+        io.pi-playbook.app: snuglog-production
+    ports:
+      - "{{ snuglog.port }}:3000"
+    env_file: env.production
+    environment:
+      INVENTORY_IMAGE_DIR: /app/data/inventory-images
+    volumes:
+      - type: bind
+        source: "{{ snuglog.images_directory }}"
+        target: "{{ snuglog.container_images_directory }}"
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "{{ snuglog.shopping_images_directory }}"
+        target: "{{ snuglog.container_shopping_images_directory }}"
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "{{ snuglog.inventory_images_directory }}"
+        target: /app/data/inventory-images
+        bind:
+          create_host_path: false
+    depends_on:
+      db-production:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db-production:
+    image: postgres:16-alpine
+    env_file: env.production
+    volumes:
+      - ./data/production/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ snuglog.db.user }}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped

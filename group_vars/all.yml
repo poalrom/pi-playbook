@@ -260,21 +260,18 @@ sharepaste:
 
 # Snuglog Household Organiser
 # Only the production environment is managed here. The compose project lives in
-# the git checkout itself because docker-compose.production.yml uses relative
-# paths (`./data/production/postgres`), so the repository root has to be the
-# compose project directory.
-#
-# Production runs the image that the "Build image" workflow of the app
-# repository publishes for the deployed commit. This host never builds it: a
-# build here took the app down for its whole length and competed with the
-# running containers for memory. The unmanaged staging environment still
-# builds on the host, on purpose.
+# the git checkout itself because the managed docker-compose.local.yml uses
+# relative paths (`./data/production/postgres`). Build the app from that checkout
+# with the pinned Node/CA stage; the upstream registry image is not published
+# for every commit. Staging remains unmanaged.
 snuglog:
   port: 8133
   domain: "snuglog.{{ ddns_domain }}"
   source_path: "{{ docker.stacks_directory }}/snuglog"
-  compose_file: "docker-compose.production.yml"
+  compose_file: "docker-compose.local.yml"
   security_compose_file: "docker-compose.security.yml"
+  image: "snuglog-production:local"
+  node_image: "node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205"
   # Compose service name of the production app container. The migrations run
   # in a throwaway container of this service.
   app_service: "app-production"
@@ -282,19 +279,6 @@ snuglog:
   # The bootstrap stamps a pre-existing schema and is a no-op afterwards.
   bootstrap_command: "npm run db:bootstrap-migrations"
   migrate_command: "npm run db:migrate"
-  registry:
-    url: "ghcr.io"
-    # Not a secret; only the token that pairs with it lives in vault.yml.
-    username: "poalrom"
-    repository: "ghcr.io/poalrom/snuglog"
-    # Tag scheme of docker/metadata-action in the app repository:
-    # sha-<full commit>. The deployed commit therefore always runs the image
-    # that CI built from exactly that commit.
-    tag_prefix: "sha-"
-    # Compose reads this file from the project directory, so a compose command
-    # that an operator types by hand uses the same tag as the last deploy.
-    tag_env_file: ".env"
-    tag_variable: "SNUGLOG_IMAGE_TAG"
   repo_url: "git@github.com:poalrom/snuglog.git"
   repo_branch: "main"
   deploy_key_path: "/home/{{ users.admin_user }}/.ssh/snuglog_deploy"
@@ -371,12 +355,6 @@ app_update:
       compose_file: ""
       security_dockerfile: "{{ sharepaste.config_path }}/Dockerfile.security"
       source_dockerfile: "{{ sharepaste.source_path }}/server/Dockerfile"
-      # Sharepaste is built on the host from ./source/server; it has no image
-      # in a registry.
-      image_repository: ""
-      image_tag_prefix: ""
-      image_tag_env_file: ""
-      image_tag_variable: ""
       database_service: ""
       migrate_service: ""
       bootstrap_command: ""
@@ -393,11 +371,8 @@ app_update:
       # "snuglog" compose project name.
       compose_file: "{{ snuglog.compose_file }}"
       compose_override_file: "{{ snuglog.security_compose_file }}"
-      # Pulled, never built here. The tag names the deployed commit.
-      image_repository: "{{ snuglog.registry.repository }}"
-      image_tag_prefix: "{{ snuglog.registry.tag_prefix }}"
-      image_tag_env_file: "{{ snuglog.registry.tag_env_file }}"
-      image_tag_variable: "{{ snuglog.registry.tag_variable }}"
+      security_dockerfile: "{{ snuglog.source_path }}/Dockerfile.security"
+      source_dockerfile: "{{ snuglog.source_path }}/Dockerfile"
       # Prepare all image binds before running a migration container. Docker
       # deliberately refuses to create them when the external disk is absent.
       storage_directories:

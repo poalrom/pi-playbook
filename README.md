@@ -175,7 +175,7 @@ journalctl -t immich-backup -t vaultwarden-backup -t sharepaste-backup -t snuglo
 - **Frigate**: NVR with 3-day continuous doorbell recording (local network only)
 - **qBittorrent with VPN**: Torrent client with WireGuard kill switch protection (local network only)
 - **Sharepaste**: Self-hosted clipboard sync, built from the `poalrom/sharepaste` repository (public)
-- **Snuglog**: Self-hosted household organiser from the private `poalrom/snuglog` repository, running the image its CI publishes (public)
+- **Snuglog**: Self-hosted household organiser from the private `poalrom/snuglog` repository, built locally with a pinned Node/CA runtime (public)
 - **App update buttons**: one Home Assistant button for each app that tracks a git repository (Sharepaste, Snuglog), which runs the update on the host
 
 ## 🔧 Service Access
@@ -609,7 +609,7 @@ docker exec sharepaste sharepaste user create <name>
 
 # The role clones the private repository https://github.com/poalrom/snuglog
 # over SSH into /opt/stacks/snuglog. That checkout is also the Docker Compose
-# project directory, because docker-compose.production.yml binds
+# project directory, because the managed docker-compose.local.yml binds
 # "./data/production/postgres".
 
 # The first run prints a deploy key and stops. Add the printed key at
@@ -618,26 +618,22 @@ docker exec sharepaste sharepaste user create <name>
 # env.production is rendered from group_vars/all.yml and vault.yml. Never edit
 # it on the host: the next playbook run overwrites it.
 
-# The app image is PULLED, never built here. The "Build image" workflow of the
-# app repository publishes ghcr.io/poalrom/snuglog:sha-<full commit> for each
-# commit on main. The role pulls the tag of the commit the checkout sits on,
-# so the running code always matches the migrations it applied. It writes the
-# tag into /opt/stacks/snuglog/.env, so a compose command typed by hand uses
-# the same image.
-
-# The package is private, so the Pi needs a registry login. Put a GitHub token
-# with the read:packages scope in vault.yml as ghcr_token; the role logs the
-# host in once. A host that is already logged in converges with an empty token.
-# docker keeps the token base64-encoded in /home/home-pi/.docker/config.json,
-# so read:packages is the only scope it may carry. The app update button uses
-# the same login, because its service runs as home-pi.
-
-# Roll back to an older image without touching the checkout:
-ansible-playbook -i inventory.yml site.yml --tags snuglog \
-    -e snuglog_image_tag=sha-<full commit>
-
-# A pull of a commit that CI has not published yet fails on purpose. Check the
-# "Build image" run for that commit first; it takes about three minutes.
+# The role builds snuglog-production:local from the checked-out source.
+# docker-compose.local.yml and Dockerfile.security are managed by this playbook;
+# the upstream registry-based compose file is not used. No GHCR login or
+# per-commit CI image is required.
+#
+# Dockerfile.security pins snuglog.node_image and the CA trust stage. Both the
+# role and update button build before running migrations or replacing the old
+# application container, so the old app keeps serving during the build.
+# A clean build on the Pi can take about 16 minutes; cached builds are faster.
+#
+# Before an update, keep a database dump and tag the current image if rollback
+# is needed. To start that saved image without rebuilding:
+# docker image tag snuglog-production:rollback-<timestamp> snuglog-production:local
+# docker compose -f docker-compose.local.yml -f docker-compose.security.yml \
+#     up -d --no-build app-production
+# Image rollback requires a compatible schema; otherwise restore its DB backup.
 
 # The image only starts the server. The role starts the database, stamps the
 # baseline schema, applies the drizzle migrations with one-off containers, and
@@ -653,7 +649,7 @@ ansible-playbook -i inventory.yml site.yml --tags snuglog \
 # checks the disk and creates these directories before migrations or app start).
 # WATCHLIST_IMAGE_DIR and SHOPPING_IMAGE_DIR in env.production point to their
 # mounted paths inside the container, so uploads survive container replacement.
-# INVENTORY_IMAGE_DIR is set by docker-compose.production.yml to
+# INVENTORY_IMAGE_DIR is set by docker-compose.local.yml to
 # /app/data/inventory-images, backed by the inventory photos directory above.
 
 # Database backup: daily at 05:00, pg_dumpall to
@@ -665,7 +661,7 @@ ansible-playbook -i inventory.yml site.yml --tags snuglog \
 
 ```bash
 # The staging containers share the "snuglog" Compose project name, so every
-# compose call in this role names docker-compose.production.yml explicitly and
+# compose call in this role names docker-compose.local.yml explicitly and
 # never removes orphans.
 
 # They are stopped and hold no data directory: production was migrated off the
@@ -720,9 +716,9 @@ clock is still unsynchronised.
 
 ### 14. App Update Buttons in Home Assistant
 
-Sharepaste and Snuglog follow their git repositories, so a new commit needs a
-rebuild (Sharepaste) or an image pull (Snuglog) on the Pi. The `app-update`
-role turns that into one button for each app in Home Assistant.
+Sharepaste and Snuglog follow their git repositories and build their images
+locally on the Pi. The `app-update` role turns that into one button for each app
+in Home Assistant.
 
 **How it works**:
 ```bash
@@ -732,13 +728,11 @@ role turns that into one button for each app in Home Assistant.
 #    Discovery, so Home Assistant creates the entities without any YAML.
 # 3. A press publishes "update" to pi-playbook/app-update/<app>/set.
 # 4. The service runs /usr/local/bin/update-<app>.sh: fetch the newest commit,
-#    build the image (Sharepaste) or pull the image CI published for that
-#    commit (Snuglog), migrate (Snuglog only), start the containers, wait for
-#    the port, remove the images left untagged.
-#    Snuglog checks the external disk and prepares both image directories
+#    build the image with the pinned Node/CA stage, migrate (Snuglog only),
+#    start the containers without rebuilding, wait for the port, remove the
+#    images left untagged. The old app keeps serving during the image build.
+#    Snuglog checks the external disk and prepares all three image directories
 #    before fetching code or starting migration containers.
-# 4b. A Snuglog press right after a push fails while CI is still building that
-#    commit. The build takes about three minutes; press again afterwards.
 # 5. The status sensor reports idle, running, success, failed, timeout or
 #    interrupted. Its attributes carry both commits, the duration and the last
 #    30 log lines.
@@ -849,9 +843,8 @@ ansible-playbook -i inventory.yml site.yml --tags sharepaste
 ansible-playbook -i inventory.yml site.yml --tags snuglog
 
 # Note: both clone from GitHub. The first run prints a deploy key and stops if
-# the Pi cannot authenticate to GitHub yet. Sharepaste builds its image on the
-# host; Snuglog pulls the image that its CI published for the deployed commit,
-# which needs ghcr_token in vault.yml.
+# the Pi cannot authenticate to GitHub yet. Both apps build locally with their
+# pinned Node/CA stages; neither needs a per-commit registry image.
 
 # Torrent client with VPN (requires VPN config file)
 ansible-playbook -i inventory.yml site.yml --tags torrent
@@ -891,6 +884,7 @@ preloaded image from satisfying a changed application/runtime pin.
 | `torrent_vpn.qbittorrent_version` | `lscr.io/linuxserver/qbittorrent` |
 | `glances.version` | `nicolargo/glances` |
 | `tinymediamanager.version` | `tinymediamanager/tinymediamanager` |
+| `snuglog.node_image` / `sharepaste.node_image` | Pinned `node` base for local application builds |
 
 The Immich database and cache base images stay pinned by digest in
 `roles/security-runtime/defaults/main.yml`; their PostgreSQL major and vector
@@ -898,18 +892,17 @@ extensions do not change during the TLS rebuild. Snuglog's PostgreSQL 16
 derivative is selected by `docker-compose.security.yml`, rendered alongside
 the app checkout and included by the role and app-update script.
 
-Snuglog carries no version variable. Its tag is derived from the deployed
-commit (`sha-<full commit>`), because CI publishes one image for each commit.
-The role writes the resolved tag into `/opt/stacks/snuglog/.env`. Roll back
-with `-e snuglog_image_tag=sha-<full commit>`.
+Snuglog carries no application version variable: it builds the checked-out
+commit into `snuglog-production:local`. The role and update button use the same
+managed local compose file and retain the Node/CA pin when refreshing app code.
 
 ### TLS runtime maintenance
 
 The 2026-10-22 revision uses Node 22.23.4 / 24.22.1, Go 1.27.3, and certifi
 2026.10.19, and distrusts emSign C1, C3 and G3 in system, Python and bundled
-Java stores. Other emSign roots are not removed. Sharepaste derives a managed
-`Dockerfile.security` from the current app Dockerfile; the update button
-refreshes its app stages while retaining the pinned Node/CA stage.
+Java stores. Other emSign roots are not removed. Sharepaste and Snuglog derive
+a managed `Dockerfile.security` from their current app Dockerfiles; the update
+buttons refresh app stages while retaining each pinned Node/CA stage.
 The certifi release still includes C1/C3, so the recipe filters the three
 specific SHA256 fingerprints after installing the verified wheel.
 
