@@ -1,0 +1,72 @@
+---
+- name: Create security runtime build directories
+  ansible.builtin.file:
+    path: "{{ security_runtime_directory }}/{{ item.key }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ security_runtime_images | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Render security runtime Dockerfiles
+  ansible.builtin.template:
+    src: Dockerfile.j2
+    dest: "{{ security_runtime_directory }}/{{ item.key }}/Dockerfile"
+    # Match plain Jinja rendering used when preloading off-host ARM64 builds.
+    trim_blocks: false
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ security_runtime_images | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+# Compare the exact recipe, including app/runtime pins, before accepting a
+# preloaded image. Changing the revision also invalidates OS package caches.
+- name: Compute security runtime recipe checksums
+  ansible.builtin.stat:
+    path: "{{ security_runtime_directory }}/{{ item.key }}/Dockerfile"
+    checksum_algorithm: sha256
+  loop: "{{ security_runtime_images | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: security_runtime_recipe_checksums
+
+- name: Check for prepared security runtime images
+  ansible.builtin.command:
+    argv:
+      - docker
+      - image
+      - inspect
+      - "pi-security/{{ item.key }}:{{ security_runtime_revision }}"
+  loop: "{{ security_runtime_images | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: security_runtime_prepared
+  changed_when: false
+  failed_when: false
+
+- name: Build missing or changed security runtime images
+  ansible.builtin.command:
+    argv:
+      - docker
+      - build
+      - --platform
+      - linux/arm64
+      - --build-arg
+      - "SECURITY_RUNTIME_RECIPE={{ security_runtime_recipe_checksums.results[security_runtime_recipe_index].stat.checksum }}"
+      - --tag
+      - "pi-security/{{ item.item.key }}:{{ security_runtime_revision }}"
+      - "{{ security_runtime_directory }}/{{ item.item.key }}"
+  loop: "{{ security_runtime_prepared.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+    index_var: security_runtime_recipe_index
+  when: >-
+    item.rc != 0 or
+    ((item.stdout | from_json)[0].Config.Labels['io.pi-playbook.recipe-sha256'] | default('')) !=
+    security_runtime_recipe_checksums.results[security_runtime_recipe_index].stat.checksum
+  changed_when: true
+  tags: ["security-runtime-build"]

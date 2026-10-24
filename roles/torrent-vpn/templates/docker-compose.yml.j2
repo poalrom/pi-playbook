@@ -2,7 +2,11 @@ name: qbittorrent
 
 services:
   gluetun:
-    image: qmcgaw/gluetun:{{ torrent_vpn.gluetun_version }}
+    image: gluetun-security:v3.41.3-go1.27.3
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: gluetun-security.Dockerfile
     container_name: gluetun
     restart: unless-stopped
     cap_add:
@@ -25,7 +29,7 @@ services:
       - net.ipv4.conf.all.src_valid_mark=1
 
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:{{ torrent_vpn.qbittorrent_version }}
+    image: pi-security/qbittorrent:{{ security_runtime_revision }}
     container_name: qbittorrent
     restart: unless-stopped
     network_mode: service:gluetun

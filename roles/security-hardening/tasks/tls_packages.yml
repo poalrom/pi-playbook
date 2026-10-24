@@ -1,0 +1,29 @@
+---
+# Bookworm's vendor OpenSSL currently remains affected by CVE-2026-35189.
+# Keep vendor ABI/package ownership; do not substitute a cross-release library.
+- name: Update vendor TLS libraries and system CA certificates
+  ansible.builtin.apt:
+    name:
+      - openssl
+      - libssl3
+      - ca-certificates
+    state: latest
+    update_cache: true
+    cache_valid_time: 3600
+
+# Mozilla NSS 3.131.1 removed C1/C3/G3. Bookworm's CA update removed G3 only.
+- name: Disable the remaining distrusted emSign roots
+  ansible.builtin.lineinfile:
+    path: /etc/ca-certificates.conf
+    regexp: "^!?mozilla/{{ item | regex_escape }}$"
+    line: "!mozilla/{{ item }}"
+    backup: true
+  loop:
+    - emSign_Root_CA_-_C1.crt
+    - emSign_ECC_Root_CA_-_C3.crt
+  register: tls_distrusted_roots
+
+- name: Rebuild the host trust bundle after root distrust
+  ansible.builtin.command: update-ca-certificates --fresh
+  when: tls_distrusted_roots.changed
+  changed_when: true

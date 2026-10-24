@@ -1,0 +1,21 @@
+# Recompile the unchanged v3.41.3 source with the patched Go TLS verifier.
+# CGO is disabled upstream, so the Debian builder does not change the Alpine runtime.
+FROM --platform=$BUILDPLATFORM golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5 AS build
+ARG TARGETARCH
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOOS=linux GOARCH=${TARGETARCH} GOMAXPROCS=2 GOMEMLIMIT=768MiB
+ADD --checksum=sha256:5f382f180780632afe57d9cba03978bc0524e469c8288f72e0f416a7749ac62c https://github.com/passteque/gluetun/archive/3d1e20c5551e9cae1f9d938dc7b7214a6987f27e.tar.gz /tmp/gluetun.tar.gz
+WORKDIR /src
+RUN tar -xzf /tmp/gluetun.tar.gz --strip-components=1 -C /src \
+    && go build -p=1 -mod=readonly -trimpath \
+       -ldflags="-s -w -X 'main.version=v3.41.3' -X 'main.created=2026-07-30T14:53:40.495Z' -X 'main.commit=3d1e20c'" \
+       -o /out/gluetun-entrypoint ./cmd/gluetun/main.go
+
+# Retain upstream OpenVPN, WireGuard, iptables, environment, entrypoint and healthcheck.
+FROM qmcgaw/gluetun:v3.41.3@sha256:fa19cc76b2af13d57a8d3dc3066f2ada061b1c761b8aecf989b3877c0486e027
+ARG SECURITY_RUNTIME_REVISION={{ security_runtime_revision }}
+RUN apk add --no-cache --upgrade ca-certificates openssl libssl3 libcrypto3 \
+    && rm -f /usr/share/ca-certificates/mozilla/emSign_Root_CA_-_C1.crt \
+             /usr/share/ca-certificates/mozilla/emSign_ECC_Root_CA_-_C3.crt \
+             /usr/share/ca-certificates/mozilla/emSign_ECC_Root_CA_-_G3.crt \
+    && update-ca-certificates --fresh
+COPY --from=build /out/gluetun-entrypoint /gluetun-entrypoint

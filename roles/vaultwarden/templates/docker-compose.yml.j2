@@ -1,6 +1,6 @@
 services:
   vaultwarden:
-    image: vaultwarden/server:{{ vaultwarden.version }}
+    image: pi-security/vaultwarden:{{ security_runtime_revision }}
     container_name: vaultwarden
     restart: unless-stopped
     volumes:

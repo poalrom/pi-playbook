@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""Forward update commands; announce readiness after every MQTT subscription."""
+
+import os
+import sys
+
+import paho.mqtt.client as mqtt
+
+
+host, port, topic_prefix, device_id = sys.argv[1:]
+availability_topic = f"{topic_prefix}/availability"
+
+
+def on_connect(client, userdata, flags, result):
+    if result != 0:
+        print(f"MQTT connection refused: {result}", file=sys.stderr, flush=True)
+        return
+    result, _ = client.subscribe(f"{topic_prefix}/+/set")
+    if result != mqtt.MQTT_ERR_SUCCESS:
+        raise RuntimeError(f"Cannot subscribe to update commands: {result}")
+
+
+def on_subscribe(client, userdata, message_id, granted_qos):
+    if 128 in granted_qos:
+        raise RuntimeError("MQTT broker rejected the update command subscription")
+    client.publish(availability_topic, "online", retain=True)
+    # This is a local control event, never an MQTT command topic.
+    print("__connected__", flush=True)
+
+
+def on_message(client, userdata, message):
+    print(message.topic, message.payload.decode("utf-8", errors="replace"), flush=True)
+
+
+client = mqtt.Client(client_id=f"{device_id}_listener", protocol=mqtt.MQTTv311)
+client.username_pw_set(os.environ["MQTT_USERNAME"], os.environ["MQTT_PASSWORD"])
+client.will_set(availability_topic, "offline", qos=1, retain=True)
+client.on_connect = on_connect
+client.on_subscribe = on_subscribe
+client.on_message = on_message
+client.connect_async(host, int(port), keepalive=30)
+client.loop_forever(retry_first_connection=True)

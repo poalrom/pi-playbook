@@ -1,6 +1,6 @@
 services:
   app:
-    image: 'jc21/nginx-proxy-manager:{{ nginx_proxy_manager.version }}'
+    image: pi-security/nginx-proxy-manager:{{ security_runtime_revision }}
     container_name: nginx-proxy-manager
     restart: unless-stopped
     volumes:

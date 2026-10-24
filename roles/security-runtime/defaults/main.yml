@@ -1,0 +1,61 @@
+---
+# App code stays on its configured release; rebuild only OS trust/TLS packages
+# and the independently embedded Node/Go verifiers.
+security_runtime_revision: "20261022"
+security_runtime_directory: "{{ docker.stacks_directory }}/security-runtime"
+security_runtime_node_image: "node:22.23.4-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d"
+security_runtime_go_image: "golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5"
+# Mozilla's distrusted emSign C1, C3 and G3 certificates, not other emSign roots.
+security_runtime_distrusted_root_fingerprints:
+  - "12:56:09:AA:30:1D:A0:A2:49:B9:7A:82:39:CB:6A:34:21:6F:44:DC:AC:9F:39:54:B1:42:92:F2:E8:C8:60:8F"
+  - "BC:4D:80:9B:15:18:9D:78:DB:3E:1D:8C:F4:F9:72:6A:79:5D:A1:64:3C:A5:F1:35:8E:1D:DB:0E:DC:0D:7E:B3"
+  - "86:A1:EC:BA:08:9C:4A:8D:3B:BE:27:34:C6:12:BA:34:1D:81:3E:04:3C:F9:E8:A8:62:CD:5C:57:A3:6B:BE:6B"
+security_runtime_images:
+  nginx-proxy-manager:
+    base_image: "jc21/nginx-proxy-manager:{{ nginx_proxy_manager.version }}"
+    node_path: /usr/bin/node
+    certifi_python: /opt/certbot/bin/python3
+  uptime-kuma:
+    base_image: "louislam/uptime-kuma:{{ uptime_kuma.version }}"
+    node_path: /usr/local/bin/node
+  homeassistant:
+    base_image: "ghcr.io/home-assistant/home-assistant:{{ home_assistant.version }}"
+    certifi_python: /usr/local/bin/python3
+    go2rtc_version: "1.9.14"
+    go2rtc_path: /bin/go2rtc
+  frigate:
+    base_image: "ghcr.io/blakeblackshear/frigate:{{ frigate.version }}"
+    certifi_python: /usr/bin/python3
+    go2rtc_version: "1.9.10"
+    go2rtc_path: /usr/local/go2rtc/bin/go2rtc
+  matter-server:
+    base_image: "{{ home_assistant.matter.image }}"
+  otbr:
+    base_image: "{{ home_assistant.thread.image }}"
+  mosquitto:
+    base_image: "{{ home_assistant.mqtt.image }}"
+  qbittorrent:
+    base_image: "lscr.io/linuxserver/qbittorrent:{{ torrent_vpn.qbittorrent_version }}"
+  vaultwarden:
+    base_image: "vaultwarden/server:{{ vaultwarden.version }}"
+  couchdb:
+    base_image: "couchdb:{{ obsidian_livesync.version }}"
+  glances:
+    base_image: "nicolargo/glances:{{ glances.version }}"
+    certifi_python: /venv/bin/python3
+  tinymediamanager:
+    base_image: "tinymediamanager/tinymediamanager:{{ tinymediamanager.version }}"
+    certifi_python: /usr/bin/python3
+    java_keytool: /app/jre/bin/keytool
+  immich-postgres:
+    # Keep the exact PostgreSQL major and vector extension versions.
+    base_image: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
+  immich-valkey:
+    base_image: "docker.io/valkey/valkey:8@sha256:81db6d39e1bba3b3ff32bd3a1b19a6d69690f94a3954ec131277b9a26b95b3aa"
+  immich-server:
+    base_image: "ghcr.io/immich-app/immich-server:{{ immich.version }}"
+  immich-machine-learning:
+    base_image: "ghcr.io/immich-app/immich-machine-learning:{{ immich.version }}"
+    certifi_python: /opt/venv/bin/python3
+  snuglog-postgres:
+    base_image: "postgres:16-alpine"

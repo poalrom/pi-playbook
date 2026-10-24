@@ -1,0 +1,10 @@
+---
+# Upstream v1.75.2 binaries use Go1.26.9. Rebuild the unchanged stable module
+# with the patched official Go toolchain until upstream publishes fixed binaries.
+rclone_release_version: "1.75.2"
+rclone_go_version: "1.27.3"
+# Verified linux/arm64 manifest from the official golang:1.27.3-bookworm index.
+rclone_builder_image: "golang:1.27.3-bookworm@sha256:d3f61539a5743b1f1815ba8dd3627202f55262fb09380feda1d585ccf5a9850e"
+# https://sum.golang.org/lookup/github.com/rclone/rclone@v1.75.2
+rclone_module_sum: "h1:0cqa6P3WmhGnu2NeOdZSetJnacpwCRtpsNbHOICqPk8="
+rclone_build_directory: "/var/cache/rclone/v{{ rclone_release_version }}-go{{ rclone_go_version }}"

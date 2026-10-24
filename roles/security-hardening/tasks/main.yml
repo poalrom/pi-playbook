@@ -15,6 +15,13 @@
   ansible.builtin.include_tasks: system_updates.yml
   tags: ["updates"]
 
+- name: Include targeted TLS package updates
+  ansible.builtin.include_tasks:
+    file: tls_packages.yml
+    apply:
+      tags: ["tls-packages"]
+  tags: ["tls-packages"]
+
 # `apply` is required for the tag to reach the tasks inside a dynamic include;
 # without it `--tags journald` selects only the include statement and runs nothing.
 - name: Include persistent journal tasks

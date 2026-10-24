@@ -38,14 +38,17 @@
     - role: firewall
       tags: ["firewall"]
 
-    - role: torrent-vpn
-      tags: ["torrent"]
-
     - role: disk-mounting
       tags: ["disk"]
 
     - role: docker-setup
       tags: ["docker"]
+
+    - role: security-runtime
+      tags: ["security-runtime"]
+
+    - role: torrent-vpn
+      tags: ["torrent"]
 
     - role: tinymediamanager
       tags: ["tmm"]

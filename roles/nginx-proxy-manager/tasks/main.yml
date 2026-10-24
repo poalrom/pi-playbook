@@ -22,6 +22,25 @@
     - data
     - letsencrypt
 
+- name: Create Nginx Proxy Manager custom configuration directory
+  ansible.builtin.file:
+    path: "{{ nginx_proxy_manager.config_path }}/data/nginx/custom"
+    state: directory
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0755"
+
+- name: Disable automatic stateless TLS session tickets
+  ansible.builtin.blockinfile:
+    path: "{{ nginx_proxy_manager.config_path }}/data/nginx/custom/http.conf"
+    create: true
+    marker: "# {mark} ANSIBLE TLS SESSION TICKETS"
+    block: "ssl_session_tickets off;"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+  notify: Restart nginx-proxy-manager
+
 - name: Create Nginx Proxy Manager docker-compose.yml
   ansible.builtin.template:
     src: docker-compose.yml.j2

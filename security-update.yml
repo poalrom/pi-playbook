@@ -1,0 +1,23 @@
+---
+# Preload ARM64 security images and the rclone build cache from a control host
+# when the production Pi has little spare memory. No application credentials
+# are rendered here. Deploy service configuration through the normal role tags.
+- name: Prepare patched TLS runtimes without replacing application credentials
+  hosts: raspberry-pi
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Update vendor host TLS packages
+      ansible.builtin.import_tasks: roles/security-hardening/tasks/tls_packages.yml
+      tags: ["tls-packages"]
+
+    - name: Install the patched rclone build only
+      ansible.builtin.import_role:
+        name: rclone
+        tasks_from: install
+      tags: ["rclone-install"]
+
+    - name: Prepare application security runtime images
+      ansible.builtin.import_role:
+        name: security-runtime
+      tags: ["security-runtime"]

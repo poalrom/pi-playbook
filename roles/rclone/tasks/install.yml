@@ -1,0 +1,103 @@
+---
+- name: Install stable rclone rebuilt with the patched Go toolchain
+  tags: ["rclone-install"]
+  block:
+    - name: Create root-owned rclone build cache
+      ansible.builtin.file:
+        path: "{{ rclone_build_directory }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    # This is a source rebuild, not an upstream precompiled release artifact.
+    # The versioned cache also permits a verified off-host build to be staged
+    # here before running this tag, avoiding compilation on the production Pi.
+    - name: Build pinned stable rclone using the official patched compiler
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --rm
+          - --platform
+          - linux/arm64
+          - --memory=1g
+          - --memory-swap=1g
+          - --cpus=2
+          - --pids-limit=256
+          - --env
+          - CGO_ENABLED=0
+          - --env
+          - GOOS=linux
+          - --env
+          - GOARCH=arm64
+          - --env
+          - GOTOOLCHAIN=local
+          - --env
+          - GOMAXPROCS=2
+          - --env
+          - GOMEMLIMIT=768MiB
+          - --env
+          - GOPROXY=https://proxy.golang.org
+          - --env
+          - GOSUMDB=sum.golang.org
+          - --env
+          - GOBIN=/output
+          - --volume
+          - "{{ rclone_build_directory }}:/output"
+          - "{{ rclone_builder_image }}"
+          - sh
+          - -ec
+          - |
+            test "$(go env GOVERSION)" = "go{{ rclone_go_version }}"
+            go mod download -json github.com/rclone/rclone@v{{ rclone_release_version }} > /tmp/rclone-module.json
+            grep -F '"Sum": "{{ rclone_module_sum }}"' /tmp/rclone-module.json
+            go install -p=1 -trimpath -ldflags="-s -w -X github.com/rclone/rclone/fs.Version=v{{ rclone_release_version }}" github.com/rclone/rclone@v{{ rclone_release_version }}
+        creates: "{{ rclone_build_directory }}/rclone"
+
+    - name: Inspect staged rclone version before installation
+      ansible.builtin.command:
+        argv:
+          - "{{ rclone_build_directory }}/rclone"
+          - version
+      register: rclone_staged_version
+      changed_when: false
+
+    - name: Require the exact stable release and patched Go build
+      ansible.builtin.assert:
+        that:
+          - "('rclone v' ~ rclone_release_version) in rclone_staged_version.stdout_lines"
+          - "('- go/version: go' ~ rclone_go_version) in rclone_staged_version.stdout_lines"
+          - "'- os/type: linux' in rclone_staged_version.stdout_lines"
+          - "rclone_staged_version.stdout is search('(?m)^- os/arch: arm64(?: |$)')"
+          - "'- go/linking: static' in rclone_staged_version.stdout_lines"
+        fail_msg: "Refusing to install a staged rclone with unexpected release, toolchain or platform."
+
+    - name: Install verified rclone binary atomically and retain the previous binary
+      ansible.builtin.copy:
+        src: "{{ rclone_build_directory }}/rclone"
+        dest: /usr/bin/rclone
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+        backup: true
+
+    - name: Verify installed rclone version
+      ansible.builtin.command: /usr/bin/rclone version
+      register: rclone_version
+      changed_when: false
+      failed_when: rclone_version.stdout_lines != rclone_staged_version.stdout_lines
+
+    - name: Compute installed rclone checksum
+      ansible.builtin.stat:
+        path: /usr/bin/rclone
+        checksum_algorithm: sha256
+      register: rclone_installed_binary
+
+    - name: Display rebuilt rclone version and checksum
+      ansible.builtin.debug:
+        msg:
+          - "{{ rclone_version.stdout_lines }}"
+          - "Source rebuild: github.com/rclone/rclone@v{{ rclone_release_version }}, Go {{ rclone_go_version }}"
+          - "SHA256: {{ rclone_installed_binary.stat.checksum }}"

@@ -12,11 +12,12 @@
 # of a template still needs an ansible run.
 # =============================================================================
 
-- name: Install the MQTT client and the JSON tool
+- name: Install MQTT clients and the JSON tool
   ansible.builtin.apt:
     name:
       - mosquitto-clients
       - jq
+      - python3-paho-mqtt
     state: present
     update_cache: false
 
@@ -70,6 +71,16 @@
   vars:
     app_key: "{{ item.key }}"
     app: "{{ item.value }}"
+
+- name: Install the reconnect-aware MQTT command client
+  ansible.builtin.template:
+    src: app-update-mqtt.py.j2
+    dest: "{{ app_update.mqtt_client_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    validate: "/usr/bin/python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' %s"
+  notify: Restart app update listener
 
 - name: Install the app update listener
   ansible.builtin.template:

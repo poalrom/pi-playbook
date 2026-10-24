@@ -1,4 +1,17 @@
 ---
+- name: Read the upstream sharepaste Dockerfile
+  ansible.builtin.slurp:
+    src: "{{ sharepaste.source_path }}/server/Dockerfile"
+  register: sharepaste_dockerfile
+
+- name: Pin the production Node runtime and CA trust without changing the app checkout
+  ansible.builtin.template:
+    src: Dockerfile.security.j2
+    dest: "{{ sharepaste.config_path }}/Dockerfile.security"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+
 - name: Render sharepaste compose.yml
   ansible.builtin.template:
     src: docker-compose.yml.j2

@@ -324,7 +324,8 @@ sudo smbpasswd -a home-pi
 - To upgrade: bump `vaultwarden.version` to the desired tag from
   [vaultwarden releases](https://github.com/dani-garcia/vaultwarden/releases),
   then run `ansible-playbook -i inventory.yml site.yml --tags vaultwarden`.
-  The role pulls the pinned tag and recreates the container.
+  Rebuild/preload its security-runtime derivative first; the service role
+  recreates the container from that local image.
 - Take a snapshot first — stop the container so SQLite closes cleanly, then archive the data
   directory outside `/media/pi/home/backups/vaultwarden` (that path is pruned after 3 days):
   ```bash
@@ -752,6 +753,13 @@ role turns that into one button for each app in Home Assistant.
 | `sensor.pi_app_updates_sharepaste_update_status` | Result of the last Sharepaste update |
 | `sensor.pi_app_updates_snuglog_update_status` | Result of the last Snuglog update |
 
+The listener's Python/Paho client publishes retained `online` only after the
+command subscription is acknowledged, including after every reconnect. Its
+Last Will publishes `offline` when the connection is lost. Reconnects also
+republish Discovery and the saved update status; they do not restart the
+listener or deploy an app. Checking that `app-update.service` is active alone
+does not prove that Home Assistant's buttons are available.
+
 **Operate it**:
 ```bash
 # Deploy
@@ -779,9 +787,9 @@ ssh -p 2312 home-pi@PI_IP "mosquitto_pub -h 127.0.0.1 -u <mqtt_user> \
   `node_modules/`, the rendered env files) survives.
 - "interrupted" means the service restarted while an update was running. The
   containers can be in any state; read the journal before the next press.
-- The MQTT password reaches `mosquitto_sub` as a command line argument, so any
-  local account can read it with `ps`. Only root and `home-pi` have an account
-  on this host. The environment file itself is root-only.
+- The subscriber reads MQTT credentials from its environment. Publishing still
+  passes the password to `mosquitto_pub` as a command line argument, so local
+  accounts can briefly read it with `ps`. The environment file is root-only.
 - A new app needs one entry under `app_update.apps` in `group_vars/all.yml`.
 - A release that adds an image bind needs its directory in the Snuglog role and
   `app_update.apps.snuglog.storage_directories`, plus its container path in
@@ -860,16 +868,16 @@ ansible-playbook -i inventory.yml site.yml --tags app-update
 
 ## 📌 Image Version Management
 
-Every container image is pinned to an exact version in `group_vars/all.yml`. A
-role calls `community.docker.docker_compose_v2` with `state: present`, and that
-module uses the Compose `missing` pull policy. A floating tag such as `latest`
-or `stable` is therefore never refreshed after the first pull: the host keeps
-the image it downloaded on the first run. Ten images had drifted 9 to 14 months
-behind upstream before the pins were introduced.
+Application release pins live in `group_vars/all.yml`. Most services run local
+`pi-security/<service>:<security_runtime_revision>` derivatives whose recipes
+live in `roles/security-runtime/`. They retain the configured application
+release and refresh distro TLS packages, system CA bundles, and embedded
+Node/Go verification runtimes. The recipe SHA256 label prevents an old
+preloaded image from satisfying a changed application/runtime pin.
 
 | Variable | Image |
 |----------|-------|
-| `immich.version` | `ghcr.io/immich-app/immich-server` and `-machine-learning` (through `IMMICH_VERSION` in `.env`) |
+| `immich.version` | Base images for `immich-server` and `-machine-learning` |
 | `home_assistant.version` | `ghcr.io/home-assistant/home-assistant` |
 | `home_assistant.mqtt.image` | `eclipse-mosquitto` |
 | `home_assistant.thread.image` | `openthread/border-router` |
@@ -879,19 +887,74 @@ behind upstream before the pins were introduced.
 | `uptime_kuma.version` | `louislam/uptime-kuma` |
 | `nginx_proxy_manager.version` | `jc21/nginx-proxy-manager` |
 | `obsidian_livesync.version` | `couchdb` |
-| `torrent_vpn.gluetun_version` | `qmcgaw/gluetun` |
+| `roles/torrent-vpn/templates/gluetun-security.Dockerfile.j2` | Pinned Gluetun source/image, rebuilt with patched Go |
 | `torrent_vpn.qbittorrent_version` | `lscr.io/linuxserver/qbittorrent` |
 | `glances.version` | `nicolargo/glances` |
 | `tinymediamanager.version` | `tinymediamanager/tinymediamanager` |
 
-The Immich database and cache images stay pinned by digest in
-`roles/immich/templates/docker-compose.yml.j2`, because Immich ties the
-VectorChord extension version to the server version.
+The Immich database and cache base images stay pinned by digest in
+`roles/security-runtime/defaults/main.yml`; their PostgreSQL major and vector
+extensions do not change during the TLS rebuild. Snuglog's PostgreSQL 16
+derivative is selected by `docker-compose.security.yml`, rendered alongside
+the app checkout and included by the role and app-update script.
 
 Snuglog carries no version variable. Its tag is derived from the deployed
 commit (`sha-<full commit>`), because CI publishes one image for each commit.
 The role writes the resolved tag into `/opt/stacks/snuglog/.env`. Roll back
 with `-e snuglog_image_tag=sha-<full commit>`.
+
+### TLS runtime maintenance
+
+The 2026-10-22 revision uses Node 22.23.4 / 24.22.1, Go 1.27.3, and certifi
+2026.10.19, and distrusts emSign C1, C3 and G3 in system, Python and bundled
+Java stores. Other emSign roots are not removed. Sharepaste derives a managed
+`Dockerfile.security` from the current app Dockerfile; the update button
+refreshes its app stages while retaining the pinned Node/CA stage.
+The certifi release still includes C1/C3, so the recipe filters the three
+specific SHA256 fingerprints after installing the verified wheel.
+
+```bash
+# Host TLS packages and rebuilt rclone only; do not rewrite cloud credentials.
+ansible-playbook -i inventory.yml security-update.yml --tags tls-packages,rclone-install
+
+# Build changed derivatives, then deploy only the intended service.
+ansible-playbook -i inventory.yml security-update.yml --tags security-runtime
+ansible-playbook -i inventory.yml site.yml --tags <tag>
+
+# On a memory-constrained Pi, render recipes without compiling there.
+ansible-playbook -i inventory.yml security-update.yml \
+    --tags security-runtime --skip-tags security-runtime-build
+```
+
+Prefer building those rendered recipes on a separate ARM64-capable BuildKit
+host with `--platform linux/arm64`. Pass the Dockerfile's SHA256 as
+`--build-arg SECURITY_RUNTIME_RECIPE=<sha256>`, tag the result
+`pi-security/<recipe-directory>:20261022`, and stream it through
+`docker image save ... | ssh ... docker image load` before the build step.
+The role accepts only images with a matching recipe label. Gluetun and
+Sharepaste use their service-specific Dockerfiles instead.
+
+The `rclone-install` tag installs stable rclone 1.75.2 rebuilt with Go 1.27.3,
+retains the previous binary, and does not touch `rclone.conf`. It accepts a
+prebuilt binary in the versioned root-owned cache after checking its release,
+Go toolchain, architecture and static linking.
+
+Limits: Debian Bookworm's vendor OpenSSL 3.0.22 remains affected by
+[CVE-2026-35189](https://security-tracker.debian.org/tracker/CVE-2026-35189);
+do not replace it with cross-release libraries. Nginx Proxy Manager disables
+automatic stateless TLS session tickets as a mitigation, not a claim that its
+bundled OpenResty/OpenSSL is patched. OpenSSL can still issue stateful TLS 1.3
+tickets with `ssl_session_tickets off`; this is
+[documented behavior](https://docs.openssl.org/3.5/man3/SSL_CTX_set_options/#notes),
+not evidence that stateless-ticket encryption remains enabled. A host CA
+refresh alone never updates container, Node, certifi, or bundled-Java trust.
+
+The production Pi also has a local Snuglog deployment outside the managed
+GHCR path. Its runtime rebuild must preserve that checkout and local Compose
+file; running the regular Snuglog role switches back to the configured GHCR
+deployment. Keep the app repository's CI Node base current before using that
+deployment path.
+
 
 ### Upgrade procedure
 
@@ -903,15 +966,17 @@ cd /opt/stacks/<service> && docker compose stop
 sudo tar -czf /media/pi/home/backups/pre-upgrade-$(date +%F)/<service>.tar.gz \
     -C /opt/stacks/<service> data
 
-# 3. Bump the variable in group_vars/all.yml, then deploy that role only:
+# 3. Bump the app pin in group_vars/all.yml and rebuild its TLS derivative.
+ansible-playbook -i inventory.yml security-update.yml --tags security-runtime
 ansible-playbook -i inventory.yml site.yml --tags <tag>
 
 # 4. Verify the running version and the data before the next service:
 docker ps --format '{{.Names}} {{.Image}} {{.Status}}'
 ```
 
-A tag change makes the image missing on the host, so Ansible pulls it without
-any extra option. The pull of a large image can take 25 minutes on the SD card.
+A changed base-image pin invalidates the derivative's recipe checksum. Build
+or preload it before deploying its role. Large image transfers can take
+minutes on the Pi's SD card.
 
 ### Rollback
 

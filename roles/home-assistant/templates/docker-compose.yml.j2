@@ -1,7 +1,7 @@
 services:
   homeassistant:
     container_name: homeassistant
-    image: ghcr.io/home-assistant/home-assistant:{{ home_assistant.version }}
+    image: pi-security/homeassistant:{{ security_runtime_revision }}
     restart: unless-stopped
     privileged: true
     cap_add:
@@ -19,7 +19,7 @@ services:
 
   mosquitto:
     container_name: mosquitto
-    image: {{ home_assistant.mqtt.image }}
+    image: pi-security/mosquitto:{{ security_runtime_revision }}
     restart: unless-stopped
     network_mode: host
     volumes:
@@ -31,7 +31,7 @@ services:
 
   otbr:
     container_name: otbr
-    image: {{ home_assistant.thread.image }}
+    image: pi-security/otbr:{{ security_runtime_revision }}
     restart: unless-stopped
     network_mode: host
     cap_add:
@@ -55,7 +55,7 @@ services:
 
   matter-server:
     container_name: matter-server
-    image: {{ home_assistant.matter.image }}
+    image: pi-security/matter-server:{{ security_runtime_revision }}
     restart: unless-stopped
     network_mode: host
     security_opt:

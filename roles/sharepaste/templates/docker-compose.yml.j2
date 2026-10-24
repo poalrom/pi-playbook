@@ -1,6 +1,8 @@
 services:
   sharepaste:
-    build: ./source/server
+    build:
+      context: ./source/server
+      dockerfile: "{{ sharepaste.config_path }}/Dockerfile.security"
     image: sharepaste:latest
     container_name: sharepaste
     restart: unless-stopped

@@ -1,6 +1,6 @@
 services:
   uptime-kuma:
-    image: louislam/uptime-kuma:{{ uptime_kuma.version }}
+    image: pi-security/uptime-kuma:{{ security_runtime_revision }}
     container_name: uptime-kuma
     restart: unless-stopped
     volumes:

@@ -62,6 +62,15 @@
       Snuglog production image {{ snuglog.registry.repository }}:{{ snuglog_resolved_image_tag }}
       ({{ 'pulled now' if snuglog_image_present.rc != 0 else 'already on the host' }})
 
+- name: Render the production database TLS runtime override
+  ansible.builtin.template:
+    src: docker-compose.security.yml.j2
+    dest: "{{ snuglog.source_path }}/{{ snuglog.security_compose_file }}"
+    owner: "{{ users.admin_user }}"
+    group: "{{ users.admin_user }}"
+    mode: "0644"
+  notify: Restart snuglog
+
 # The runtime image only starts the server; it never migrates. The Better Auth
 # MCP plugin reads its own tables during boot, so an unmigrated database makes
 # every request answer 500. Bring the database up alone, migrate, then start
@@ -71,6 +80,7 @@
     project_src: "{{ snuglog.source_path }}"
     files:
       - "{{ snuglog.compose_file }}"
+      - "{{ snuglog.security_compose_file }}"
     services:
       - db-production
     state: present
@@ -83,7 +93,7 @@
 - name: Stamp the snuglog baseline schema
   ansible.builtin.command:
     cmd: >-
-      docker compose -f {{ snuglog.compose_file }} run --rm --no-deps
+      docker compose -f {{ snuglog.compose_file }} -f {{ snuglog.security_compose_file }} run --rm --no-deps
       {{ snuglog.app_service }} {{ snuglog.bootstrap_command }}
     chdir: "{{ snuglog.source_path }}"
   become: true
@@ -94,7 +104,7 @@
 - name: Apply snuglog database migrations
   ansible.builtin.command:
     cmd: >-
-      docker compose -f {{ snuglog.compose_file }} run --rm --no-deps
+      docker compose -f {{ snuglog.compose_file }} -f {{ snuglog.security_compose_file }} run --rm --no-deps
       {{ snuglog.app_service }} {{ snuglog.migrate_command }}
     chdir: "{{ snuglog.source_path }}"
   become: true
@@ -111,6 +121,7 @@
     project_src: "{{ snuglog.source_path }}"
     files:
       - "{{ snuglog.compose_file }}"
+      - "{{ snuglog.security_compose_file }}"
     state: present
 
 - name: Wait for snuglog to listen

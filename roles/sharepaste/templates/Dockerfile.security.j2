@@ -1,0 +1,12 @@
+# syntax=docker/dockerfile:1
+FROM {{ sharepaste.node_image }} AS security_node
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates openssl \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /usr/share/ca-certificates/mozilla/emSign_Root_CA_-_C1.crt \
+             /usr/share/ca-certificates/mozilla/emSign_ECC_Root_CA_-_C3.crt \
+             /usr/share/ca-certificates/mozilla/emSign_ECC_Root_CA_-_G3.crt \
+    && update-ca-certificates --fresh
+
+# Application Dockerfile follows.
+{{ sharepaste_dockerfile.content | b64decode | regex_replace('(?m)^FROM node:[^\\s]+', 'FROM security_node') }}

@@ -2,23 +2,11 @@
 # =============================================================================
 # Rclone Role - Installation and Configuration
 # =============================================================================
+- name: Install rclone without changing credentials
+  ansible.builtin.import_tasks: install.yml
+  tags: ["rclone-install"]
 
-- name: Install rclone
-  ansible.builtin.shell: |
-    curl https://rclone.org/install.sh | sudo bash
-  args:
-    creates: /usr/bin/rclone
-  tags: ["skip_ansible_lint"]
-  changed_when: false
 
-- name: Verify rclone installation
-  ansible.builtin.command: rclone version
-  register: rclone_version
-  changed_when: false
-
-- name: Display rclone version
-  ansible.builtin.debug:
-    var: rclone_version.stdout_lines
 
 - name: Create rclone config directory
   ansible.builtin.file:

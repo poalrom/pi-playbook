@@ -37,6 +37,9 @@ COMPOSE=(docker compose -f "{{ app.compose_file }}")
 {% else %}
 COMPOSE=(docker compose)
 {% endif %}
+{% if app.compose_override_file | default('') %}
+COMPOSE+=(-f "{{ app.compose_override_file }}")
+{% endif %}
 
 # The GitHub key is pinned in the ssh config of the user that owns the
 # checkout, so git has to run as that user. The same user holds the registry
@@ -84,6 +87,29 @@ if [ "$commit_before" = "$commit_after" ]; then
 else
     log "moved ${commit_before} -> ${commit_after}"
 fi
+
+{% if app.security_dockerfile | default('') %}
+# Refresh only the app stages after fetching code; retain the managed Node/CA stage.
+python3 - "{{ app.source_dockerfile }}" "{{ app.security_dockerfile }}" <<'PY'
+import os
+import pathlib
+import re
+import sys
+
+source, target = map(pathlib.Path, sys.argv[1:])
+marker = "# Application Dockerfile follows.\n"
+header, separator, _ = target.read_text().partition(marker)
+if not separator:
+    raise RuntimeError("Missing managed runtime stage in " + str(target))
+stages, replaced = re.subn(r"(?m)^FROM node:[^\s]+", "FROM security_node", source.read_text())
+if not replaced:
+    raise RuntimeError("No upstream Node stages found in " + str(source))
+temporary = target.with_suffix(".tmp")
+temporary.write_text(header + marker + stages)
+temporary.chmod(0o644)
+os.replace(temporary, target)
+PY
+{% endif %}
 
 cd "$PROJECT_PATH"
 {% if app.image_repository %}

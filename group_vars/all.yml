@@ -118,7 +118,7 @@ immich:
   port: 2283
   domain: "photo.{{ ddns_domain }}"
   public_access: true
-  version: "v3.2.0"
+  version: "v3.3.5"
   config_path: "{{ docker.stacks_directory }}/immich"
   library_directory: "{{ storage.mount_point }}/immich/library"
   # Placed to the main storage to avoid permission conflicts
@@ -247,6 +247,7 @@ sharepaste:
   config_path: "{{ docker.stacks_directory }}/sharepaste"
   data_path: "{{ docker.stacks_directory }}/sharepaste/data"
   source_path: "{{ docker.stacks_directory }}/sharepaste/source"
+  node_image: "node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205"
   repo_url: "git@github.com:poalrom/sharepaste.git"
   repo_branch: "main"
   deploy_key_path: "/home/{{ users.admin_user }}/.ssh/sharepaste_deploy"
@@ -273,6 +274,7 @@ snuglog:
   domain: "snuglog.{{ ddns_domain }}"
   source_path: "{{ docker.stacks_directory }}/snuglog"
   compose_file: "docker-compose.production.yml"
+  security_compose_file: "docker-compose.security.yml"
   # Compose service name of the production app container. The migrations run
   # in a throwaway container of this service.
   app_service: "app-production"
@@ -338,6 +340,7 @@ snuglog:
 # needs an ansible run.
 app_update:
   listener_script_path: "/usr/local/bin/app-update-listener.sh"
+  mqtt_client_script_path: "/usr/local/bin/app-update-mqtt.py"
   env_file: "/etc/pi-playbook/app-update.env"
   # Holds the last status, the last attributes and the last log of each app.
   # The root filesystem keeps it, so a missing external disk cannot break it.
@@ -366,6 +369,8 @@ app_update:
       project_path: "{{ sharepaste.config_path }}"
       # Empty, because the project directory holds a single compose.yml.
       compose_file: ""
+      security_dockerfile: "{{ sharepaste.config_path }}/Dockerfile.security"
+      source_dockerfile: "{{ sharepaste.source_path }}/server/Dockerfile"
       # Sharepaste is built on the host from ./source/server; it has no image
       # in a registry.
       image_repository: ""
@@ -387,6 +392,7 @@ app_update:
       # Named explicitly, because the unmanaged staging environment shares the
       # "snuglog" compose project name.
       compose_file: "{{ snuglog.compose_file }}"
+      compose_override_file: "{{ snuglog.security_compose_file }}"
       # Pulled, never built here. The tag names the deployed commit.
       image_repository: "{{ snuglog.registry.repository }}"
       image_tag_prefix: "{{ snuglog.registry.tag_prefix }}"
@@ -408,7 +414,6 @@ app_update:
 
 # Torrent VPN Configuration
 torrent_vpn:
-  gluetun_version: "v3.41.3"
   qbittorrent_version: "5.2.3_v2.0.14-ls475"
   config_path: "{{ docker.stacks_directory }}/qbittorrent"
   qbittorrent_config_path: "{{ docker.stacks_directory }}/qbittorrent/config"

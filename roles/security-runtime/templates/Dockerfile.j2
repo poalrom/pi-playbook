@@ -1,0 +1,102 @@
+# syntax=docker/dockerfile:1
+{% if item.value.node_path is defined %}
+FROM {{ security_runtime_node_image }} AS patched_node
+{% endif %}
+{% if item.value.go2rtc_version is defined %}
+FROM --platform=$BUILDPLATFORM {{ security_runtime_go_image }} AS patched_go2rtc
+ARG TARGETARCH
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOOS=linux GOARCH=${TARGETARCH} GOMAXPROCS=2 GOMEMLIMIT=768MiB
+RUN go mod download github.com/AlexxIT/go2rtc@v{{ item.value.go2rtc_version }} \
+    && cd /go/pkg/mod/github.com/\!alexx\!i\!t/go2rtc@v{{ item.value.go2rtc_version }} \
+    && go build -p=1 -mod=readonly -trimpath -ldflags="-s -w" -o /out/go2rtc .
+{% endif %}
+{% if item.value.certifi_python is defined %}
+FROM scratch AS python_wheels
+ADD --checksum=sha256:382ff9f685ee3bc25864f820aa50505825f10f5458ffff07e30a6d96e5715cab https://files.pythonhosted.org/packages/5d/95/6b5cb3461ea5673ba0995989746db58eb18b91b54dbf331e72f569540946/pip-26.1.2-py3-none-any.whl /wheels/pip-26.1.2-py3-none-any.whl
+ADD --checksum=sha256:42d35340cc5b9ba78e818ddbff0c5b1c2b779de448a340fd1b989f5fa8670e1b https://files.pythonhosted.org/packages/c4/51/29046e48f693c54e5b7412216d447a1d8362c9653148d98c02cdf65fa733/certifi-2026.10.19-py3-none-any.whl /wheels/certifi-2026.10.19-py3-none-any.whl
+{% endif %}
+FROM {{ item.value.base_image }}
+ARG SECURITY_RUNTIME_RECIPE
+# Do not mix distro releases or replace vendor-managed system libraries.
+RUN if command -v apt-get >/dev/null 2>&1; then \
+      apt-get update \
+      && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates openssl \
+      && rm -rf /var/lib/apt/lists/*; \
+    else \
+      apk add --no-cache --upgrade ca-certificates openssl libssl3 libcrypto3; \
+    fi
+# Some distro CA packages removed only G3; follow Mozilla's complete distrust.
+RUN rm -f /usr/share/ca-certificates/mozilla/emSign_Root_CA_-_C1.crt \
+          /usr/share/ca-certificates/mozilla/emSign_ECC_Root_CA_-_C3.crt \
+          /usr/share/ca-certificates/mozilla/emSign_ECC_Root_CA_-_G3.crt \
+    && update-ca-certificates --fresh
+{% if item.value.node_path is defined %}
+COPY --from=patched_node /usr/local/bin/node {{ item.value.node_path }}
+{% endif %}
+{% if item.value.go2rtc_version is defined %}
+COPY --from=patched_go2rtc /out/go2rtc {{ item.value.go2rtc_path }}
+{% endif %}
+{% if item.value.certifi_python is defined %}
+# Install only the checksum-verified local wheel; no index or dependencies.
+# Keep pip out of the runtime image, including interpreters without pip.
+RUN --mount=type=bind,from=python_wheels,source=/wheels,target=/wheels \
+    PYTHONPATH=/wheels/pip-26.1.2-py3-none-any.whl {{ item.value.certifi_python }} -m pip install \
+      --no-index --no-deps --no-cache-dir --break-system-packages --upgrade \
+      /wheels/certifi-2026.10.19-py3-none-any.whl
+# The certifi release removed G3 only; explicitly distrust C1 and C3 as well.
+RUN {{ item.value.certifi_python }} - <<'PY'
+import certifi
+import hashlib
+import pathlib
+import re
+import ssl
+
+distrusted = {value.replace(":", "").lower() for value in [
+{% for fingerprint in security_runtime_distrusted_root_fingerprints %}
+    "{{ fingerprint }}",
+{% endfor %}
+]}
+bundle = pathlib.Path(certifi.where())
+certificates = re.findall(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", bundle.read_text(), re.S)
+if not certificates:
+    raise RuntimeError("Cannot parse certifi CA bundle")
+trusted = [pem for pem in certificates if hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest() not in distrusted]
+bundle.write_text("".join(pem + "\n" for pem in trusted))
+print("Removed distrusted certifi roots:", len(certificates) - len(trusted))
+PY
+{% endif %}
+{% if item.value.java_keytool is defined %}
+# The bundled JRE does not use Debian's system CA bundle.
+RUN {{ item.value.certifi_python }} - "{{ item.value.java_keytool }}" <<'PY'
+import hashlib
+import re
+import ssl
+import subprocess
+import sys
+
+keytool = sys.argv[1]
+common = [keytool, "-J-Duser.language=en", "-J-Duser.country=US", "-cacerts", "-storepass", "changeit"]
+listing = subprocess.run(common + ["-list", "-rfc"], check=True, capture_output=True, text=True)
+entries = listing.stdout.split("Alias name: ")[1:]
+if not entries:
+    raise RuntimeError("Cannot parse the bundled Java CA store")
+distrusted = {value.replace(":", "").lower() for value in [
+{% for fingerprint in security_runtime_distrusted_root_fingerprints %}
+    "{{ fingerprint }}",
+{% endfor %}
+]}
+removed = 0
+for entry in entries:
+    alias = entry.splitlines()[0].strip()
+    pem = re.search(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", entry, re.S)
+    if pem is None:
+        raise RuntimeError("Cannot parse Java CA certificate: " + alias)
+    digest = hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem.group())).hexdigest()
+    if digest in distrusted:
+        subprocess.run(common + ["-delete", "-alias", alias], check=True)
+        removed += 1
+print("Removed distrusted Java roots:", removed)
+PY
+{% endif %}
+LABEL io.pi-playbook.security-revision="{{ security_runtime_revision }}"
+LABEL io.pi-playbook.recipe-sha256="${SECURITY_RUNTIME_RECIPE}"

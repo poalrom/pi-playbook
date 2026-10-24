@@ -1,6 +1,6 @@
 services:
   tinymediamanager:
-    image: tinymediamanager/tinymediamanager:{{ tinymediamanager.version }}
+    image: pi-security/tinymediamanager:{{ security_runtime_revision }}
     container_name: tinymediamanager
     restart: unless-stopped
     ports:

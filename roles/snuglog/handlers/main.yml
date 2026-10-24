@@ -6,5 +6,6 @@
     project_src: "{{ snuglog.source_path }}"
     files:
       - "{{ snuglog.compose_file }}"
+      - "{{ snuglog.security_compose_file }}"
     state: present
     recreate: always

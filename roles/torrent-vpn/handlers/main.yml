@@ -8,3 +8,4 @@
     project_src: "{{ torrent_vpn.config_path }}"
     state: present
     recreate: always
+    build: policy
